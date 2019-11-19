@@ -1,0 +1,31 @@
+func (s {{.RepoName}}) {{.MutationName}}{{.MutationSig}} {
+	sql := {{.SQLVarName}}
+    exec := s.getExec(options)
+    arglist, inlens := args.arglist()
+    sql, err := replaceInCond(sql, inlens...)
+    if err != nil {
+        return nil, err
+    }
+	rst, err := exec.Exec(ctx, sql, arglist...)
+	if err != nil {
+		return rst, err
+	}
+    if s.cache == nil {
+        return rst, nil
+    }
+    {{ if  .Invalidates -}}
+	_ = exec.Invalidate(func() {
+        {{ range .Invalidates -}}
+        if {{.ArgName}} == nil {
+            return
+        }
+		if {{.ValName}} != nil {
+			_ = s.cache.Set(ctx, {{.ArgName}}.Key(), {{.ValName}}, time.Duration({{.CacheDuration.Nanoseconds}}))
+		} else {
+			_ = s.cache.Invalidate(ctx, {{.ArgName}}.Key())
+		}
+        {{ end -}}
+	})
+    {{- end }}
+	return rst, nil
+}

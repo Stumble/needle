@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<needle>
+  <schema>
+    <sql>
+      CREATE TABLE `users`
+      (
+      `username` char(20) NOT NULL PRIMARY KEY,
+      `displayName` varchar(255) NOT NULL,
+      `displaynameLastChanged` datetime NOT NULL,
+      `dliveVerified` boolean NOT NULL DEFAULT 0,
+      `languagePreference` varchar(16) DEFAULT 'en',
+      `avatar` varchar(255) DEFAULT NULL,
+      `coverImage` varchar(255) DEFAULT NULL,
+      `about` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+      `location` varchar(255) DEFAULT NULL,
+      `email` varchar(255),
+      `emailVerified` boolean NOT NULL DEFAULT 0,
+      `phone` varchar(255),
+      `phoneVerified` boolean NOT NULL DEFAULT 0,
+      `followerCount` int(32) DEFAULT 0,
+      `followingCount` int(32) DEFAULT 0,
+      `createdAt` datetime NOT NULL,
+      `updatedAt` datetime NOT NULL,
+      `totalEarning` char(64) NOT NULL DEFAULT "0000000000000000000000000000000000000000000000000000000000000000",
+      `lastDayEarning` char(64) NOT NULL DEFAULT "0000000000000000000000000000000000000000000000000000000000000000",
+      `lastWeekEarning` char(64) NOT NULL DEFAULT "0000000000000000000000000000000000000000000000000000000000000000",
+      `totalRank` int(32) DEFAULT -1,
+      `lastDayRank` int(32) DEFAULT -1,
+      `lastWeekRank` int(32) DEFAULT -1,
+      `fbId` varchar(255) DEFAULT NULL,
+      `googleID` varchar(255) DEFAULT NULL ,
+      `twitchID` varchar(255) DEFAULT NULL ,
+      `passwordSalt` CHAR(60) BINARY DEFAULT NULL,
+      `insecure` boolean NOT NULL DEFAULT 0,
+      `fromDLive` boolean NOT NULL DEFAULT 0,
+      `watching` BIGINT NOT NULL DEFAULT 0,
+      `fromDLiveLoggedIn` boolean NOT NULL DEFAULT 0,
+      UNIQUE KEY `users_ibu_1` (`email`),
+      UNIQUE KEY `users_ibu_2` (`fbId`),
+      UNIQUE KEY `users_ibu_3` (`phone`),
+      UNIQUE KEY `users_ibu_4` (`googleID`),
+      UNIQUE KEY `users_ibu_5` (`twitchID`),
+      UNIQUE KEY `users_ibu_6` (`displayName`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+    </sql>
+  </schema>
+  <stmts>
+    <query name="userByDisplayName" type="row">
+      <sql>
+        SELECT email as e FROM users as uuuu WHERE `username`=? AND `totalRank` > 10;
+      </sql>
+    </query>
+  </stmts>
+</needle>

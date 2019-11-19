@@ -1,0 +1,40 @@
+<needle>
+  <schema name="Orders" mainObj="Order" hiddenFields="CreatedAt">
+    <sql>
+      CREATE TABLE Orders (
+        OrderID      int,
+        OrderDate    varchar(255),
+        OrderAmount  int,
+        OrderStatus  int,
+        CreatedAt    datetime NOT NULL,
+        CustomerID   int
+      );
+    </sql>
+    <ref src="customers.xml"></ref>
+  </schema>
+  <stmts>
+    <query name="getOrdersByCustomerID" type="single" cacheDuration="10s">
+      <sql>
+        SELECT Orders.OrderID, Customers.CustomerName, Orders.OrderDate
+        FROM Orders
+        INNER JOIN Customers
+        ON Orders.CustomerID=Customers.CustomerID
+        WHERE
+        `Orders`.`CustomerID` = ?;
+      </sql>
+    </query>
+    <query name="GetOrders" type="single" cacheDuration="5m">
+      <sql>
+        SELECT count(*), COALESCE(sum(Orders.OrderAmount), 0)
+        FROM Orders;
+      </sql>
+    </query>
+    <mutation name="UpdateOrder" invalidate="getOrdersByCustomerID, GetOrders">
+      <sql>
+        UPDATE Orders
+        SET OrderStatus = ?
+        WHERE OrderID = ?;
+      </sql>
+    </mutation>
+  </stmts>
+</needle>

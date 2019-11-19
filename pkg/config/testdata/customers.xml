@@ -1,0 +1,16 @@
+<needle>
+  <schema name="Customers">
+    <sql>
+      CREATE TABLE Customers (
+        CustomerID int,
+        CustomerName varchar(255)
+      );
+    </sql>
+  </schema>
+  <stmts>
+    <!-- <query name="t1" type="single"> -->
+    <!-- <sql> -->
+    <!-- </sql> -->
+    <!-- </query> -->
+  </stmts>
+</needle>

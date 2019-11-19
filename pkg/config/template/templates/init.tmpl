@@ -1,0 +1,30 @@
+<needle>
+  <schema name="{{.TableName}}" hiddenFields="" mainObj="{{.ObjName}}">
+    <sql>
+      CREATE TABLE {{.TableName}} (
+        {{.ObjName}}ID      int NOT NULL
+      )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    </sql>
+    <!-- add references here if query or mutation joined other tables. -->
+    <!-- <ref src="foo/bar.xml"></ref> -->
+  </schema>
+  <stmts>
+    <query name="Get{{.ObjName}}s" type="many" cacheDuration="5m">
+      <sql>
+        SELECT * FROM {{.TableName}};
+      </sql>
+    </query>
+    <query name="Get{{.ObjName}}ByID" type="single" cacheDuration="5m">
+      <sql>
+        SELECT * FROM {{.TableName}} WHERE {{.ObjName}}ID = ?;
+      </sql>
+    </query>
+    <mutation name="Insert{{.ObjName}}" invalidate="Get{{.ObjName}}ByID,Get{{.ObjName}}s">
+      <sql>
+        INSERT INTO {{.TableName}}
+        ({{.ObjName}}ID)
+        VALUES(?);
+      </sql>
+    </mutation>
+  </stmts>
+</needle>

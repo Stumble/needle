@@ -1,0 +1,30 @@
+* DCache
+a redis cache:
+#+begin_src go
+// Cache defines interface to cache
+type Cache interface {
+	// Get returns value of f while caching in redis and inmemcache
+	// Inputs:
+	// queryKey	 - key used in cache
+	// target	 	 - an instance of the same type as the return interface{}
+	// expire 	 - expiration of cache key
+	// f				 - actual call that hits underlying data source
+	// noCache 	 - whether force read from data source
+	Get(ctx context.Context, queryKey QueryKey, target interface{}, expire time.Duration, f PassThroughFunc, noCache bool) (interface{}, error)
+
+	// Set explicitly set a cache key to a val
+	// Inputs:
+	// key		- key to set
+	// val	  - val to set
+	// ttl    - ttl of key
+	Set(ctx context.Context, key QueryKey, val interface{}, ttl time.Duration) error
+
+	// Invalidate explicitly invalidates a cache key
+	// Inputs:
+	// key    - key to invalidate
+	Invalidate(ctx context.Context, key QueryKey) error
+
+	// Close closes resources used by cache
+	Close()
+}
+#+end_src

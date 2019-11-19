@@ -1,0 +1,229 @@
+* About
+Needle's inputs are schema(s) and queries(CURD). It will generate a golang repository file, that
+contains a repository interface which covers all queries provided. It is powered by TiDB's 
+SQL parser.
+
++ Cache implementation: https://github.com/Stumble/needle/tree/master/pkg/clients/dcache
++ MySQL manager implementation: https://github.com/Stumble/needle/tree/master/pkg/clients/mysql
+
+* Usage
+** Introduction
+Imagine, your PM told you to add a feature to store the preferred language of a user. Here are the three steps:
+1. generate a needle configuration of needle by:
+#+begin_src text
+# stumble @ yxia in /tmp/example/langrepo [16:51:00] 
+$ needle -t Language -o lang.xml
+#+end_src
+
+2. edit this xml file accroding to your needs, e.g.
+#+begin_src xml
+<needle>
+  <schema name="Languages" hiddenFields="" mainObj="Language">
+    <sql>
+      CREATE TABLE Languages (
+        LanguageID      int NOT NULL
+      )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    </sql>
+    <!-- add references here if query or mutation joined other tables. -->
+    <!-- <ref src="foo/bar.xml"></ref> -->
+  </schema>
+  <stmts>
+    <query name="GetLanguages" type="many" cacheDuration="5m">
+      <sql>
+        SELECT * FROM Languages;
+      </sql>
+    </query>
+    <query name="GetLanguageByID" type="single" cacheDuration="5m">
+      <sql>
+        SELECT * FROM Languages WHERE LanguageID = ?;
+      </sql>
+    </query>
+    <mutation name="InsertLanguage" invalidate="GetLanguageByID,GetLanguages">
+      <sql>
+        INSERT INTO Languages
+        (LanguageID)
+        VALUES(?);
+      </sql>
+    </mutation>
+  </stmts>
+</needle>
+#+end_src
+
+3. generate idiomatic go codes by run `needle -f lang.xml -o lang.go`. It will give you a go file with some key functions:
+#+begin_src Go
+package languagesrepo
+...
+// Languages - main interface.
+type Languages interface {
+	GetUserLang(ctx context.Context, args *GetUserLangArgs, options ...Option) (*Language, error)
+	InsertLanguage(ctx context.Context, args *Language, options ...Option) (sql.Result, error)
+	Check(ctx context.Context) error
+}
+....
+// NewLanguages - nil cache indicates nocache.
+func NewLanguages(c Cache, exec DBExecuter) Languages {
+	return &languages{cache: c, exec: exec}
+}
+....
+#+end_src
+
+That's it. Now this repo will take care of the data access layer for you.
+
+Note that all attributes are case-sensitive.
+** WARNINGs
+1. When no records found, Returns `nil` error and `nil` object.
+** Schema
++ name: prefix of repository, generated file will be `name`+repo, lowercased.
++ mainObj: name of a generated struct that contains all fileds in this table except for hiddenFields.
++ hiddenFields: a list of fields that will not be included in mainObj, separated by `,`.
+** Query
++ name: name of query function.
++ type: [single|many] query result of only one record or many.
++ cacheDuration: golang style time duration string(see https://golang.org/pkg/time/#ParseDuration), e.g. 5s, 10m. use `forever` to cache forever. 
+  If absent, cache is not enabled for this query.
+** Mutation
++ name: name of the mutation function.
++ invalidate: a list of query names that needs to be invalidated on success of this mutation., `,` separated, e.g. "GetLanguageByID,GetLanguages".
+* Spec
+Support mysql SQL statements with several minor changes.
+** Wildcard in select
+we define that *wildcard symbol in select statement will be converted
+into main table struct*.  For example,
+#+begin_src SQL
+select * from users;
+#+end_src
+will become
+#+begin_src SQL
+select users.username, users.userid from users;
+#+end_src
+A *main table struct* is all fields of the table schema of the
+configuration, except for hidden_fields.  Note that the above case is
+the same as SQL standard. However, when you join tables, it is
+different.  In SQL standard, * will include all tables, while in
+Needle spec, only the main table fields.  For example, for a query
+defined in users.xml
+#+begin_src SQL
+select * from users inner join orders on users.id = orders.id;
+#+end_src
+will become
+#+begin_src SQL
+select users.username, users.userid from users inner join orders on
+users.id = orders.id;
+#+end_src
+but NOT
+#+begin_src SQL
+select users.username, users.userid, order.orderid from users inner
+join orders on users.id = orders.id;
+#+end_src
+
+** SQL InPattern
+For list match(e.g. where username in ("alice", "bob")), you can use
+simply put it as
+#+begin_src SQL
+select * from users where username in (?);
+#+end_src
+needle will identify this case and generate an array as parameter of
+this query(CURD).  while in the runtime, (?) will be expanded to the
+number of parameters, with NO MAXIMUM.  It's caller's duty to ensure
+that he does not construct a crazy large list that will crash DB.
+
+The array argument passed in *CANNOT* be nil or an empty list.
+
+** Limitations
+Function result in select *must* be renamed by *as*.
+
+** Output
+1. a single file named by main schema's name filed, with `repo` suffix.
+2. one interface named by `package+Repo` that provides functions generated by queries.
+3. an implementation of the interface, with a constructor a cache client as input. 
+4. CURDs require a sql executor as parameter.
+
+** Insert
+Insert queries will have a default
+
+* Roadmap
+** v0.1.0
+
+*** TODO tasks
++ front-end
+  + checker: lint name cannot be duplicated.
+
++ cache policy (xxx)
++ disallowing * when doing join.
+
+*** DONE done jobs
++ input schema v1.
++ SQL parsing.
++ Table info parse.
++ Name resolve.
++ XML input of schema and queries.
++ Schema parsed to table.
++ Query parsed to Query.
++ logging and error visitor infra.
++ type assignment.
++ type inference.
++ add more schema properties
+  + type parsing: "single"/"many"
+  + cache duration, duration golang string.
+  + hidden fields.
+  + mutation: invalidate="[queryNames]"
++ midend
+  + paramMarker ordering.
+  + * resolves to a list of column refs, except for hidden fields.
++ struct gen
+  + one general struct for each table, all column except for hidden fields.
+  + one input and one output struct for each mutation and query.
++ code gen
+  + query code
+  + support variable lenth pattern in(no maximum length limit).
++ code gen
+  + mutation code + invalidate cache
+
+** v0.x
+1. test visitors.
+
+** NOT v0.1.x
+1. sub-query type inference.
+2. gen mongodb backed repository.
+3. schema + online DDL.
+
+* Docs
+# The whole process can be described as follow passes:
+# 1. input preprocess,
+#    1. read configuration files,
+#    2. inlining schemas(to support join clause).
+# 2. parse schema(s) and queries into AST.
+# 3. resolve name identifiers to fully qualified names. (tableName.ColumnName)
+# 4. resolve input types.
+# 5. resolve scalar functions types, e.g. sum(avg(t)) => float64, sum(e) => type(e).
+# 6. generate functions.
+
+** Frontend
+*** Config Reader
+Config package provide a loader from xml to NeedleConfig.
+1. Unmarshal from xml file to `config.NeedleConfig` struct.
+2. Check name, mainObj of main schema.
+3. Recursively loading referenced tables(xml files), with maximum depth = 1.
+4. For queries, check: query name validity, type in ("single", "many"), cache duration validity.
+5. Check Mutation/Query name duplication.
+6. For mutations, valid mutation name, valid invalidate query name.
+
+*** Parsing
+Driver package maintains the main struct of all asts that latter passes is applied on. This dirver
+convert a needle config and convert it to Driver.Repo.
+
+1. parse table SQL.
+2. column name duplications.
+3. existence of hidden fileds' names.
+
+** Midend
+*** NameResolve
+*** TypeInference
+
+** Backend
+*** MysqlCodegen
+
+
+* Unsupported
+1. `BETWEEN` clause, replace it with `a >= xx AND a <= yy`
+2. `Alter Table` is not supported for now.

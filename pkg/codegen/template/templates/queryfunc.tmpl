@@ -1,0 +1,71 @@
+func (s {{.RepoName}}) {{.QueryName}}{{.QuerySig}} {
+    {{- if .InitArgsType -}}
+    args := &{{.InitArgsType}}{}
+    {{- end }}
+    exec := s.getExec(options)
+    {{if .CacheDuration -}}
+        nocache := s.isCacheNoRead(options)
+	    if s.cache == nil {
+	    	return s.{{.HiddenQueryName}}(ctx, exec, args)
+	    }
+        rst, err := s.cache.Get(ctx, args.Key(),
+            {{- if .IsList -}}([]{{.RstTypeName}})
+            {{- else -}}(*{{.RstTypeName}})
+            {{- end }}(nil), time.Duration({{.CacheDuration.Nanoseconds}}),
+	    	func() (interface{}, error) {
+	    		return s.{{.HiddenQueryName}}(ctx, exec, args)
+	    	}, nocache)
+        {{if .IsList -}}
+        return rst.([]{{.RstTypeName}}), err
+        {{else}}
+	    return rst.(*{{.RstTypeName}}), err
+        {{- end }}
+    {{else -}}
+        return s.{{.HiddenQueryName}}(ctx, exec, args)
+    {{- end}}
+}
+
+func (s {{.RepoName}}) {{.HiddenQueryName}}{{.QueryInnerSig}} {
+	sql := {{.SQLVarName}}
+    arglist, inlens := args.arglist()
+    sql, err := replaceInCond(sql, inlens...)
+    if err != nil {
+        return nil, err
+    }
+	rows, err := exec.Query(ctx, sql, arglist...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+    {{if .IsList}}
+	var rst []{{.RstTypeName}}
+	for rows.Next() {
+        row := {{.RstTypeName}}{}
+		err := row.scan(rows)
+		if err != nil {
+			return nil, err
+		}
+        rst = append(rst, row)
+	}
+    {{else}}
+	var rst *{{.RstTypeName}}
+    if rows.Next() {
+        rst = &{{ .RstTypeName }}{}
+		err := rst.scan(rows)
+		if err != nil {
+			return nil, err
+		}
+    }
+    {{end}}
+
+	// must shut it down with no error.
+	rerr := rows.Close()
+	if rerr != nil {
+		return nil, rerr
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return rst, err
+}

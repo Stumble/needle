@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<needle>
+  <schema name="users">
+    <sql>
+      CREATE TABLE `users` (
+        `uname` char(20) NOT NULL PRIMARY KEY,
+        `dname` varchar(255) NOT NULL,
+        `changed` datetime NOT NULL,
+        `verified` boolean NOT NULL DEFAULT 0,
+        `languagePreference` varchar(16) DEFAULT 'en',
+        `avatar` varchar(255) DEFAULT NULL,
+        `about` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        `email` varchar(255),
+        `followerCount` int(32) DEFAULT 0,
+        `createdAt` datetime NOT NULL,
+        `watching` BIGINT NOT NULL DEFAULT 0,
+        UNIQUE KEY `users_ibu_1` (`email`)
+      ) ENGINE = InnoDB DEFAULT CHARSET = utf8;
+    </sql>
+  </schema>
+  <stmts>
+  </stmts>
+</needle>

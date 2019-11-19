@@ -1,0 +1,12 @@
+<needle>
+  <schema name="Customers" mainObj="Customer">
+    <sql>
+      CREATE TABLE Customers (
+        CustomerID int,
+        CustomerName varchar(255)
+      );
+    </sql>
+  </schema>
+  <stmts>
+  </stmts>
+</needle>

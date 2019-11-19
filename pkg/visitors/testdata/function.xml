@@ -1,0 +1,22 @@
+<needle>
+  <schema>
+    <sql>
+      CREATE TABLE Orders (
+        OrderID int,
+        OrderAmount int,
+        OrderDate varchar(255),
+        CustomerID int
+      );
+    </sql>
+  </schema>
+  <stmts>
+    <query name="t1" type="row">
+      <sql>
+        SELECT Orders.OrderID, Orders.OrderDate, 
+        FROM Orders
+        WHERE
+        `Orders`.`CustomerID` = ?;
+      </sql>
+    </query>
+  </stmts>
+</needle>

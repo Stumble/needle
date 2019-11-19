@@ -1,0 +1,58 @@
+<needle>
+  <schema name="Orders" hiddenFields="CreatedAt" mainObj="Order">
+    <sql>
+      CREATE TABLE Orders (
+        OrderID      int,
+        OrderDate    varchar(255),
+        OrderAmount  int,
+        OrderStatus  int,
+        CreatedAt    datetime NOT NULL,
+        CustomerID   int
+      );
+    </sql>
+    <ref src="customers.xml"></ref>
+  </schema>
+  <stmts>
+    <query name="GetOrdersByCustomerID" type="single" cacheDuration="10s">
+      <sql>
+        SELECT Orders.OrderID, Customers.CustomerName, Orders.OrderDate
+        FROM Orders
+        INNER JOIN Customers
+        ON Orders.CustomerID=Customers.CustomerID
+        WHERE
+        `Orders`.`CustomerID` = ?;
+      </sql>
+    </query>
+    <query name="GetOrders" type="single" cacheDuration="5m">
+      <sql>
+        SELECT count(*), COALESCE(sum(Orders.OrderAmount), 0)
+        FROM Orders;
+      </sql>
+    </query>
+    <query name="GetOrdersByCustomerIDsWithAmount" type="single" cacheDuration="5m">
+      <sql>
+        SELECT Orders.OrderID, Orders.OrderDate, Orders.OrderAmount
+        FROM Orders
+        WHERE
+        Orders.CustomerID IN (?) AND Orders.OrderAmount > ?;
+      </sql>
+    </query>
+    <query name="GetOrdersLimit" type="single" cacheDuration="5m">
+      <sql>
+        SELECT Orders.OrderID, Orders.OrderDate, Orders.OrderAmount
+        FROM Orders
+        WHERE
+        Orders.OrderAmount = ?
+        LIMIT ?, ?;
+      </sql>
+    </query>
+
+    <mutation name="UpdateOrder" invalidate="GetOrdersByCustomerID, GetOrders">
+      <sql>
+        UPDATE Orders
+        SET OrderStatus = ?
+        WHERE OrderID = ?;
+      </sql>
+    </mutation>
+  </stmts>
+</needle>
