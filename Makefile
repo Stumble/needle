@@ -1,6 +1,6 @@
 GO := go
 NAME := needle
-MAIN_GO := ./cmd/needle/main.go
+MAIN_GO := ./cmd/needle
 ROOT_PACKAGE := $(GIT_PROVIDER)/$(ORG)/$(NAME)
 GO_VERSION := $(shell $(GO) version | sed -e 's/^[^0-9.]*\([0-9.]*\).*/\1/')
 PACKAGE_DIRS := $(shell $(GO) list ./... | grep -v /vendor/ | grep -v /api/ )
