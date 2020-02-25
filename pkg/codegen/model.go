@@ -132,8 +132,14 @@ func (g GoStruct) KeyFunc(prefix string) string {
 func (g GoStruct) ArglistFunc() string {
 	var builder strings.Builder
 	for _, f := range g.Fields {
-		builder.WriteString(fmt.Sprintf("args = append(args, %s)\n", "r."+f.Name))
-		if f.Type.IsList {
+		if !f.Type.IsList {
+			builder.WriteString(fmt.Sprintf("args = append(args, %s)\n", "r."+f.Name))
+		} else {
+			tpl := `for _, v := range %s {
+	args = append(args, v)
+}
+`
+			builder.WriteString(fmt.Sprintf(tpl, "r."+f.Name))
 			builder.WriteString(fmt.Sprintf("inlens = append(inlens, len(%s))\n", "r."+f.Name))
 		}
 	}
