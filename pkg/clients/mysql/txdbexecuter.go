@@ -32,12 +32,12 @@ func (m *manager) getTxDBExecuter(tx *sql.Tx) *txDBExecuter {
 
 func (s *txDBExecuter) commit() {
 	var wg sync.WaitGroup
-	for _, inval := range s.invalidateFunc {
+	for _, v := range s.invalidateFunc {
 		wg.Add(1)
-		go func() {
+		go func(inval func()) {
 			defer wg.Done()
 			inval()
-		}()
+		}(v)
 	}
 	wg.Wait()
 }
