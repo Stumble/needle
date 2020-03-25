@@ -28,7 +28,7 @@ func (m *manager) GetDBExecuter() DBExecuter {
 }
 
 func (s *simpleDBExecuter) Invalidate(f func()) error {
-	go f()
+	f()
 	return nil
 }
 

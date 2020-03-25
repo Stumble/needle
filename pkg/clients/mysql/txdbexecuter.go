@@ -31,9 +31,15 @@ func (m *manager) getTxDBExecuter(tx *sql.Tx) *txDBExecuter {
 }
 
 func (s *txDBExecuter) commit() {
+	var wg sync.WaitGroup
 	for _, inval := range s.invalidateFunc {
-		go inval()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			inval()
+		}()
 	}
+	wg.Wait()
 }
 
 // It is not thread-safe and should not be called in concurrent goroutines
