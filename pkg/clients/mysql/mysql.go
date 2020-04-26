@@ -8,6 +8,11 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
+)
+
+const (
+	HighQPSMaxOpenConns = 100
 )
 
 type Config struct {
@@ -19,6 +24,15 @@ type Config struct {
 	MaxOpenConns int           `default:"10"`
 	MaxIdleConns int           `default:"10"`
 	MaxLifetime  time.Duration `default:"60s"`
+}
+
+func (c *Config) String() string {
+	if c == nil {
+		return "nil"
+	}
+	copy := *c
+	copy.Password = "*hidden*"
+	return fmt.Sprintf("%+v", copy)
 }
 
 func ConfigFromEnv() *Config {
@@ -46,6 +60,11 @@ func NewMysqlManager(config *Config) (Manager, error) {
 func NewMysqlManagerWithMetrics(config *Config, gauge *prometheus.GaugeVec, execCounter *prometheus.CounterVec, execHistogram *prometheus.HistogramVec) (Manager, error) {
 	if config == nil {
 		config = ConfigFromEnv()
+	}
+	if config.MaxOpenConns < HighQPSMaxOpenConns {
+		log.Warn().Msgf(
+			"MysqlManager Config has MaxOpenConns = %d,"+
+				"which may be too low to handle high QPS.", config.MaxOpenConns)
 	}
 	manager, err := newManagerWithMetrics(config, gauge, execCounter, execHistogram)
 	if err != nil {
