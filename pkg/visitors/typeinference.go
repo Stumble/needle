@@ -346,23 +346,33 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 		switch v.FnName.L {
 		case ast.Coalesce:
 			// user MUST PLACE the type in the order of (nullable, nullable, notnullable)?
-			lastType := v.Args[len(v.Args)-1].GetType().Clone()
-			t.LogWarn("partial support of coalesce function %s, "+
-				"type resolve to the last parameter: %s, notnull: %t",
-				utils.RestoreNode(v), lastType, (lastType.Flag&mysql.NotNullFlag) != 0)
-			// fmt.Println(parser.DeepSprintIR(v.Args[len(v.Args)-1]))
-			v.SetType(lastType)
+			if (len(v.Args) == 0) {
+				t.AppendErr(NewErrorf(ErrTypeCheck,
+					"invoke %s with zero arguments", ast.Coalesce))
+			} else {
+				lastType := v.Args[len(v.Args)-1].GetType().Clone()
+				t.LogWarn("partial support of coalesce function %s, "+
+					"type resolve to the last parameter: %s, notnull: %t",
+					utils.RestoreNode(v), lastType, (lastType.Flag&mysql.NotNullFlag) != 0)
+				v.SetType(lastType)
+			}
 		case ast.AddDate, ast.DateAdd, ast.Date:
 			v.SetType(v.Args[0].GetType().Clone())
 		case ast.UTCTimestamp:
 			v.SetType(newNotNullDatetimeType())
 		case ast.LastInsertId:
 			v.SetType(newNotNullIntType())
-		case ast.Curdate:
+		case ast.Curdate, ast.Now:
 			v.SetType(newNotNullDatetimeType())
 		default:
-			v.SetType(v.Args[0].GetType().Clone())
-			t.LogWarn("unsupported function: %s", v.FnName.L)
+			if (len(v.Args) >= 1) {
+				defaultType := v.Args[0].GetType()
+				v.SetType(defaultType.Clone())
+				t.LogWarn("unsupported function: %s, type-check defaults to: %s",
+					v.FnName.L, defaultType)
+			} else {
+				t.AppendErr(NewErrorf(ErrTypeCheck, "cannot infer type of %s", v.FnName.L))
+			}
 		}
 	case *ast.FuncCastExpr:
 		switch v.FunctionType {
