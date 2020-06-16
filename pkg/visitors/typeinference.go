@@ -18,16 +18,27 @@ import (
 )
 
 type columnRef struct {
-	name     string // name may be aliased by as clause.
-	nullable bool   // additional nullable may be applied by left/right/outer join.
-	col      schema.SQLColumn
+	name       string // name may be aliased by as clause.
+	nullable   bool   // additional nullable may be applied by left/right/outer join.
+	col        schema.SQLColumn
+	tmpVarType *types.FieldType
 }
 
 func (r columnRef) t() *types.FieldType {
-	if r.nullable {
-		return nullClone(r.col.Type())
+	var tp *types.FieldType
+	if r.col != nil {
+		tp = r.col.Type()
 	}
-	return r.col.Type().Clone()
+	if r.tmpVarType != nil {
+		tp = r.tmpVarType
+	}
+	if tp == nil {
+		panic(fmt.Errorf("type nil: %+v", r))
+	}
+	if r.nullable {
+		return nullClone(tp)
+	}
+	return tp.Clone()
 }
 
 type refStack struct {
@@ -45,6 +56,9 @@ func newRefStack() refStack {
 func (r *refStack) PushNames(refs ...columnRef) {
 	r.stack = append(r.stack, refs)
 	for _, ref := range refs {
+		if ref.col == nil && ref.tmpVarType == nil {
+			panic(fmt.Errorf("invalid push: %+v", ref))
+		}
 		r.dict[ref.name] = append(r.dict[ref.name], ref)
 	}
 }
@@ -80,25 +94,23 @@ type TypeInferenceVisitor struct {
 	*baseVisitor
 	DBInfo []schema.SQLTable
 
-	tableAliases map[string]string
-	tableMap     map[string]schema.SQLTable
-	refStack     refStack
+	tableMap map[string]schema.SQLTable
+	refStack refStack
 }
 
 var _ ast.Visitor = &TypeInferenceVisitor{}
 
 // NewTypeInferenceVisitor - schema is used for column's type.
-func NewTypeInferenceVisitor(dbs []schema.SQLTable, tableAliases map[string]string) *TypeInferenceVisitor {
+func NewTypeInferenceVisitor(dbs []schema.SQLTable) *TypeInferenceVisitor {
 	tableMap := make(map[string]schema.SQLTable)
 	for _, table := range dbs {
 		tableMap[table.Name()] = table
 	}
 	return &TypeInferenceVisitor{
-		baseVisitor:  newBaseVisitor("TypeInference"),
-		DBInfo:       dbs,
-		tableAliases: tableAliases,
-		tableMap:     tableMap,
-		refStack:     newRefStack(),
+		baseVisitor: newBaseVisitor("TypeInference"),
+		DBInfo:      dbs,
+		tableMap:    tableMap,
+		refStack:    newRefStack(),
 	}
 }
 
@@ -205,39 +217,69 @@ func (t *TypeInferenceVisitor) makeColumnRefs(tref *ast.TableRefsClause) ([]colu
 		nullable := nullableVec[i]
 		switch v := resultSetNode.(type) {
 		case *ast.TableSource:
-			name, simple := v.Source.(*ast.TableName)
-			if !simple {
+			switch src := v.Source.(type) {
+			case *ast.TableName:
+				asname := v.AsName.String()
+				tablename := src.Name.String()
+				if asname == "" {
+					asname = tablename
+				}
+				table, ok := t.tableMap[tablename]
+				if !ok {
+					t.AppendErr(NewErrorf(ErrInvalidExpr,
+						"table definition not found: %s", tablename))
+					return nil, false
+				}
+				for _, col := range table.Columns() {
+					rst = append(rst, columnRef{
+						name:     makeFQColName(asname, col.Name()),
+						nullable: nullable,
+						col:      col,
+					})
+				}
+			case *ast.SelectStmt:
+				// in this case, actually we need a control-flow-visitor where
+				// select * from XXX, XXX is visited before select so that XXX has
+				// been type-checked. However, since we don't have it, plus that
+				// this IR is mutable, we can hack in the following way.
+				asname := v.AsName.String()
+				if asname == "" {
+					t.AppendErr(NewErrorf(ErrInvalidExpr,
+						"subquery not aliased: %s", utils.RestoreNode(src)))
+					return nil, false
+				}
+				subVisitor := NewTypeInferenceVisitor(t.DBInfo)
+				subVisitor.DisableLogging(true)
+				src.Accept(subVisitor)
+				if subVisitor.Errors() != nil {
+					for _, e := range subVisitor.Errors() {
+						t.AppendErr(e.(Error))
+					}
+					return nil, false
+				}
+				for _, field := range src.Fields.Fields {
+					if field.Expr.GetType().Tp == mysql.TypeUnspecified {
+						t.AppendErr(NewErrorf(ErrTypeCheck,
+							"failed to type-check: %s", utils.RestoreNode(field)))
+						return nil, false
+					}
+					tempRef := columnRef{
+						name:       makeFQColName(asname, field.AsName.String()),
+						nullable:   nullable,
+						tmpVarType: field.Expr.GetType().Clone(),
+					}
+					t.LogInfo("adding temp ref: %+v", tempRef)
+					rst = append(rst, tempRef)
+				}
+			default:
 				// not a simple table, not supported for now
-				t.AppendErr(NewError(ErrNotSupported, v.Text()))
+				t.AppendErr(NewError(ErrNotSupported, utils.RestoreNode(v)))
 				return nil, false
-			}
-			tablename := name.Name.String()
-			asname := v.AsName.String()
-			if asname == "" {
-				asname = tablename
-			}
-			table, ok := t.tableMap[tablename]
-			if !ok {
-				t.AppendErr(NewErrorf(ErrInvalidExpr, "table definition not found: %s", tablename))
-				return nil, false
-			}
-			for _, col := range table.Columns() {
-				rst = append(rst, columnRef{
-					name:     makeFQColName(asname, col.Name()),
-					nullable: nullable,
-					col:      col,
-				})
 			}
 		case *ast.Join:
 			refs, found := t.makeColumnRefs(&ast.TableRefsClause{TableRefs: v})
 			if found {
-				for _, ref := range refs {
-					rst = append(rst, columnRef{
-						name:     ref.name,
-						nullable: nullable,
-						col:      ref.col,
-					})
-				}
+				rst = append(rst, refs...)
 			} else {
 				return nil, false
 			}
@@ -246,8 +288,6 @@ func (t *TypeInferenceVisitor) makeColumnRefs(tref *ast.TableRefsClause) ([]colu
 		}
 	}
 	return rst, true
-	// from: TableRefsClause -> Join
-	// fmt.Println(parser.DeepSprintIR(join))
 }
 
 // Leave - Implements Visitor
@@ -346,7 +386,7 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 		switch v.FnName.L {
 		case ast.Coalesce:
 			// user MUST PLACE the type in the order of (nullable, nullable, notnullable)?
-			if (len(v.Args) == 0) {
+			if len(v.Args) == 0 {
 				t.AppendErr(NewErrorf(ErrTypeCheck,
 					"invoke %s with zero arguments", ast.Coalesce))
 			} else {
@@ -365,7 +405,7 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 		case ast.Curdate, ast.Now:
 			v.SetType(newNotNullDatetimeType())
 		default:
-			if (len(v.Args) >= 1) {
+			if len(v.Args) >= 1 {
 				defaultType := v.Args[0].GetType()
 				v.SetType(defaultType.Clone())
 				t.LogWarn("unsupported function: %s, type-check defaults to: %s",
