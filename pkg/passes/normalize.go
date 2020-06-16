@@ -1,8 +1,6 @@
 package passes
 
 import (
-	// "fmt"
-
 	"github.com/pingcap/parser/ast"
 
 	"github.com/stumble/needle/pkg/driver"
@@ -17,7 +15,7 @@ type NormalizePass struct {
 
 // Run -
 func (n NormalizePass) Run(repo *driver.Repo) error {
-	tableNames := collectTableNames(repo.Tables)
+	// tableNames := collectTableNames(repo.Tables)
 
 	asts := make([]ast.Node, 0)
 
@@ -36,11 +34,12 @@ func (n NormalizePass) Run(repo *driver.Repo) error {
 			return mergeErrors(starElim.Errors())
 		}
 
-		tableAs := visitors.NewTableAsVisitor(tableNames)
-		node.Accept(tableAs)
-		if tableAs.Errors() != nil {
-			return mergeErrors(tableAs.Errors())
-		}
+		// XXX(yumin): tableAs pass is no longer useful.
+		// tableAs := visitors.NewTableAsVisitor(tableNames)
+		// node.Accept(tableAs)
+		// if tableAs.Errors() != nil {
+		// 	return mergeErrors(tableAs.Errors())
+		// }
 
 		nameResolve := visitors.NewNameResolveVisitor(repo.Tables)
 		node.Accept(nameResolve)
@@ -48,7 +47,7 @@ func (n NormalizePass) Run(repo *driver.Repo) error {
 			return mergeErrors(nameResolve.Errors())
 		}
 
-		typeInference := visitors.NewTypeInferenceVisitor(repo.Tables, tableAs.TableAlias)
+		typeInference := visitors.NewTypeInferenceVisitor(repo.Tables)
 		node.Accept(typeInference)
 		if typeInference.Errors() != nil {
 			return mergeErrors(typeInference.Errors())

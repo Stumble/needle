@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/rs/zerolog"
+
 	"github.com/stumble/needle/pkg/config"
 	"github.com/stumble/needle/pkg/driver"
 	"github.com/stumble/needle/pkg/passes"
@@ -14,7 +16,14 @@ func main() {
 	genTemplate := flag.String("t", "", "generate a needle template")
 	filePath := flag.String("f", "", "Input file path")
 	outputPath := flag.String("o", "", "output file path")
+	debug := flag.Bool("debug", false, "sets log level to debug")
 	flag.Parse()
+
+	// Default level for this example is info, unless debug flag is present
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	if *debug {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
 
 	if *genTemplate != "" {
 		if *outputPath == "" {

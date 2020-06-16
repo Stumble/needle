@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/stumble/needle/pkg/clients/mysql"
 	"github.com/stretchr/testify/suite"
+	"github.com/stumble/needle/pkg/clients/mysql"
 )
 
 type MysqlTestSuite struct {

@@ -183,7 +183,7 @@ Insert queries will have a default
 1. test visitors.
 
 ** NOT v0.1.x
-1. sub-query type inference.
+1. sub-query type inference. // limited support since v0.3.0
 2. gen mongodb backed repository.
 3. schema + online DDL.
 
@@ -227,3 +227,4 @@ convert a needle config and convert it to Driver.Repo.
 * Unsupported
 1. `BETWEEN` clause, replace it with `a >= xx AND a <= yy`
 2. `Alter Table` is not supported for now.
+3. Experimentally support sub-query.

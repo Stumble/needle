@@ -13,8 +13,9 @@ type baseVisitor struct {
 	name   string
 	errors []error
 
-	depth    int
-	traceCtx []ast.Node
+	depth          int
+	traceCtx       []ast.Node
+	disableLogging bool
 }
 
 func newBaseVisitor(name string) *baseVisitor {
@@ -71,27 +72,40 @@ func (b *baseVisitor) FindInCtxAnyOf(types ...ast.Node) (ast.Node, bool) {
 	return nil, false
 }
 
+func (b *baseVisitor) DisableLogging(y bool) {
+	b.disableLogging = y
+}
+
 func (b *baseVisitor) Errors() []error {
 	return b.errors
 }
 
 func (b *baseVisitor) AppendErr(err Error) {
 	b.errors = append(b.errors, err)
+	if !b.disableLogging {
+		log.Debug().Err(err).Msgf("[%s]: AppendErr", b.name)
+	}
 }
 
 // compiler error
 func (b *baseVisitor) LogCE(f string, args ...interface{}) {
-	log.Error().Msgf(fmt.Sprintf("[%s/CompilerErr]", b.name)+f, args...)
+	if !b.disableLogging {
+		log.Error().Msgf(fmt.Sprintf("[%s/CompilerErr]", b.name)+f, args...)
+	}
 }
 
 // user warning
 func (b *baseVisitor) LogWarn(f string, args ...interface{}) {
-	log.Warn().Msgf(fmt.Sprintf("[%s/Warn]", b.name)+f, args...)
+	if !b.disableLogging {
+		log.Warn().Msgf(fmt.Sprintf("[%s/Warn]", b.name)+f, args...)
+	}
 }
 
 // user info
 func (b *baseVisitor) LogInfo(f string, args ...interface{}) {
-	log.Warn().Msgf(fmt.Sprintf("[%s/Info]", b.name)+f, args...)
+	if !b.disableLogging {
+		log.Info().Msgf(fmt.Sprintf("[%s/Info]", b.name)+f, args...)
+	}
 }
 
 func typeEqual(a, b interface{}) bool {
