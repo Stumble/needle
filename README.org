@@ -228,3 +228,8 @@ convert a needle config and convert it to Driver.Repo.
 1. `BETWEEN` clause, replace it with `a >= xx AND a <= yy`
 2. `Alter Table` is not supported for now.
 3. Experimentally support sub-query.
+
+* Release Notes
+** v0.4.0
+1. go version >= 1.6.0
+2. update to SQL parser.
