@@ -41,9 +41,6 @@ all: build
 pre-build:
 	git submodule update --init --recursive
 
-generate:
-	GO111MODULE=on go generate ./...
-
 test-cmd:
 	CGO_ENABLED=$(CGO_ENABLED) $(GO) test -p 1 $(PACKAGE_DIRS) -test.v
 
@@ -53,10 +50,10 @@ test-local: pre-build
 test: pre-build # add anything that's needed for test. ex. docker-mongo
 	make test-cmd
 
-build: pre-build generate
+build: pre-build
 	GO111MODULE=on $(GO) build -o build/$(NAME) $(MAIN_GO)
 
-install: pre-build generate
+install: pre-build
 	cd cmd/needle && GO111MODULE=on $(GO) install
 
 full: $(PKGS)
