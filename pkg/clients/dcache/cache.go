@@ -3,7 +3,6 @@ package dcache
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"reflect"
@@ -13,10 +12,11 @@ import (
 	"time"
 
 	"github.com/coocood/freecache"
-	"github.com/go-redis/redis"
+	redis "github.com/go-redis/redis/v8"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	uuid "github.com/satori/go.uuid"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (
@@ -39,6 +39,8 @@ var (
 	ErrTimeout = errors.New("timeout")
 	// ErrInternal should never happen
 	ErrInternal = errors.New("internal")
+
+	ErrNil = errors.New("nil")
 )
 
 // SetNowFunc is a helper function to replace time.Now()
@@ -47,20 +49,32 @@ func SetNowFunc(f func() time.Time) { nowFunc = f }
 // PassThroughFunc is the actual call to underlying data source
 type PassThroughFunc = func() (interface{}, error)
 
+// PassThroughExpireFunc is the actual call to underlying data source while
+// returning a duration as expire timer
+type PassThroughExpireFunc = func() (interface{}, time.Duration, error)
+
 // Cache defines interface to cache
 type Cache interface {
 	// Get returns value of f while caching in redis and inmemcache
 	// Inputs:
 	// queryKey	 - key used in cache
-	// target	 	 - an instance of the same type as the return interface{}
+	// target	 - receive the cached value, must be pointer
 	// expire 	 - expiration of cache key
-	// f				 - actual call that hits underlying data source
+	// f		 - actual call that hits underlying data source
 	// noCache 	 - whether force read from data source
-	Get(ctx context.Context, queryKey QueryKey, target interface{}, expire time.Duration, f PassThroughFunc, noCache bool) (interface{}, error)
+	Get(ctx context.Context, queryKey QueryKey, target interface{}, expire time.Duration, f PassThroughFunc, noCache bool) error
+
+	// GetWithExpire returns value of f while caching in redis
+	// Inputs:
+	// queryKey	 - key used in cache
+	// target	 - receive the cached value, must be pointer
+	// f		 - actual call that hits underlying data source, sets expire duration
+	// noCache 	 - whether force read from data source
+	GetWithExpire(ctx context.Context, queryKey string, target interface{}, f PassThroughExpireFunc, noCache bool) error
 
 	// Set explicitly set a cache key to a val
 	// Inputs:
-	// key		- key to set
+	// key	  - key to set
 	// val	  - val to set
 	// ttl    - ttl of key
 	Set(ctx context.Context, key QueryKey, val interface{}, ttl time.Duration) error
@@ -85,6 +99,9 @@ type Client struct {
 	invalidateMu           *sync.Mutex
 	invalidateCh           chan struct{}
 	readThroughPerKeyLimit time.Duration
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	wg                     sync.WaitGroup
 }
 
 // NewCache creates a new redis cache with inmem cache
@@ -99,8 +116,10 @@ func NewCache(
 		Name: fmt.Sprintf("%s_cache", appName),
 		Help: "Cache operations",
 	}, []string{"name"})
-	// Ignore error
 	_ = prometheus.Register(counter)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
 	c := &Client{
 		primaryConn:            primaryClient,
 		promCounter:            counter,
@@ -110,9 +129,11 @@ func NewCache(
 		invalidateCh:           make(chan struct{}),
 		inMemCache:             inMemCache,
 		readThroughPerKeyLimit: readThroughPerKeyLimit,
+		ctx:                    ctx,
+		cancel:                 cancel,
 	}
 	if inMemCache != nil {
-		c.pubsub = c.primaryConn.Subscribe(redisCacheInvalidateTopic)
+		c.pubsub = c.primaryConn.Subscribe(ctx, redisCacheInvalidateTopic)
 		go c.aggregateSend()
 		go c.listenKeyInvalidate()
 	}
@@ -122,9 +143,12 @@ func NewCache(
 // Close terminates redis pubsub gracefully
 func (c *Client) Close() {
 	if c.pubsub != nil {
-		c.pubsub.Unsubscribe()
+		// todo: handle close
+		c.pubsub.Unsubscribe(c.ctx)
 		c.pubsub.Close()
 	}
+	c.cancel()
+	c.wg.Wait()
 }
 
 // QueryKey is an alias to string
@@ -135,51 +159,51 @@ type nilPlaceholder struct {
 }
 
 // getNoCache read through using f and populate cache if no error
-func (c *Client) getNoCache(ctx context.Context, queryKey QueryKey, expire time.Duration, f PassThroughFunc) (interface{}, error) {
+func (c *Client) getNoCacheWithValue(ctx context.Context, queryKey QueryKey, f PassThroughExpireFunc, v interface{}, noCache bool) error {
 	if c.promCounter != nil {
 		c.promCounter.WithLabelValues("MISS").Inc()
 	}
-	dbres, err := f()
-	go func() {
-		if err == nil {
-			var buf bytes.Buffer
-			enc := gob.NewEncoder(&buf)
-			var e error
-			v := reflect.ValueOf(dbres)
-			if dbres == nil || v.Kind() == reflect.Ptr && v.IsNil() {
-				e = enc.Encode(&nilPlaceholder{})
-			} else {
-				e = enc.Encode(dbres)
-			}
-			if e == nil {
-				c.setKey(queryKey, buf.Bytes(), expire)
-			}
-		} else {
-			c.deleteKey(queryKey)
-		}
-	}()
-	return dbres, err
+	dbres, expire, err := f()
+	if err != nil {
+		c.deleteKey(ctx, queryKey)
+		return err
+	}
+	bs, e := marshal(dbres)
+	if e != nil {
+		return e
+	}
+	if !noCache {
+		c.setKey(ctx, queryKey, bs, expire)
+	}
+
+	e = unmarshal(bs, v)
+	if e != nil {
+		return e
+	}
+
+	return nil
 }
 
 // setKey set key in redis and inMemCache
-func (c *Client) setKey(queryKey QueryKey, b []byte, expire time.Duration) {
-	if c.primaryConn.Set(store(queryKey), b, maxCacheTime).Err() == nil {
-		c.primaryConn.Set(ttl(queryKey), strconv.FormatInt(nowFunc().UTC().Add(expire).Unix(), 10), expire)
+func (c *Client) setKey(ctx context.Context, queryKey QueryKey, b []byte, expire time.Duration) {
+	if c.primaryConn.Set(ctx, store(queryKey), b, maxCacheTime).Err() == nil {
+		c.primaryConn.Set(ctx, ttl(queryKey), strconv.FormatInt(nowFunc().UTC().Add(expire).Unix(), 10), expire)
 	}
 	if c.inMemCache != nil {
 		value, err := c.inMemCache.Get([]byte(store(queryKey)))
 		if err == nil && !bytes.Equal(value, b) {
 			c.broadcastKeyInvalidate(queryKey)
 		}
-		c.inMemCache.Set([]byte(store(queryKey)), b, int(expire/time.Second))
+		// ignore inmem cache error
+		_ = c.inMemCache.Set([]byte(store(queryKey)), b, int(expire/time.Second))
 	}
 }
 
 // deleteKey delete key in redis and inMemCache
-func (c *Client) deleteKey(queryKey QueryKey) {
-	if e := c.primaryConn.Get(store(queryKey)).Err(); e != redis.Nil {
+func (c *Client) deleteKey(ctx context.Context, queryKey QueryKey) {
+	if e := c.primaryConn.Get(ctx, store(queryKey)).Err(); e != redis.Nil {
 		// Delete key if error should not be cached
-		c.primaryConn.Del(store(queryKey), ttl(queryKey))
+		c.primaryConn.Del(ctx, store(queryKey), ttl(queryKey))
 	}
 	if c.inMemCache != nil {
 		_, err := c.inMemCache.Get([]byte(store(queryKey)))
@@ -206,10 +230,15 @@ func (c *Client) broadcastKeyInvalidate(queryKey QueryKey) {
 func (c *Client) aggregateSend() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	c.wg.Add(1)
+	defer c.wg.Done()
+
 	for {
 		select {
 		case <-ticker.C:
 		case <-c.invalidateCh:
+		case <-c.ctx.Done():
+			return
 		}
 		go func() {
 			c.invalidateMu.Lock()
@@ -225,7 +254,7 @@ func (c *Client) aggregateSend() {
 				keys = append(keys, key)
 			}
 			msg := c.id + delimiter + strings.Join(keys, delimiter)
-			c.primaryConn.Publish(redisCacheInvalidateTopic, msg)
+			c.primaryConn.Publish(c.ctx, redisCacheInvalidateTopic, msg)
 		}()
 	}
 }
@@ -233,6 +262,9 @@ func (c *Client) aggregateSend() {
 // listenKeyInvalidate subscribe to invalidate key requests and invalidates inmemcache
 func (c *Client) listenKeyInvalidate() {
 	ch := c.pubsub.Channel()
+	c.wg.Add(1)
+	defer c.wg.Done()
+
 	for {
 		msg, ok := <-ch
 		if !ok {
@@ -259,15 +291,15 @@ func (c *Client) listenKeyInvalidate() {
 }
 
 func store(key QueryKey) string {
-	return "{" + key + "}"
+	return fmt.Sprintf(":{%s}", key)
 }
 
 func lock(key QueryKey) string {
-	return store(key) + lockSuffix
+	return fmt.Sprintf(":%s%s", store(key), lockSuffix)
 }
 
 func ttl(key QueryKey) string {
-	return store(key) + ttlSuffix
+	return fmt.Sprintf(":%s%s", store(key), ttlSuffix)
 }
 
 // typedNil cast the ret to the nil pointer of same type if it is a pointer
@@ -281,12 +313,22 @@ func typedNil(target interface{}) interface{} {
 }
 
 // Get implements Cache interface
-func (c *Client) Get(ctx context.Context, queryKey QueryKey, target interface{}, expire time.Duration, f PassThroughFunc, noCache bool) (interface{}, error) {
+func (c *Client) Get(ctx context.Context, queryKey QueryKey, target interface{}, expire time.Duration, f PassThroughFunc, noCache bool) error {
+	fn := func() (interface{}, time.Duration, error) {
+		res, err := f()
+		return res, expire, err
+	}
+
+	return c.GetWithExpire(ctx, queryKey, target, fn, noCache)
+}
+
+// GetWithExpire implements Cache interface
+func (c *Client) GetWithExpire(ctx context.Context, queryKey QueryKey, target interface{}, f PassThroughExpireFunc, noCache bool) error {
 	if c.promCounter != nil {
 		c.promCounter.WithLabelValues("TOTAL").Inc()
 	}
 	if noCache {
-		return c.getNoCache(ctx, queryKey, expire, f)
+		return c.getNoCacheWithValue(ctx, queryKey, f, target, noCache)
 	}
 	readConn := c.primaryConn
 
@@ -298,11 +340,11 @@ func (c *Client) Get(ctx context.Context, queryKey QueryKey, target interface{},
 	if bRes == nil {
 		var res, ttlRes string
 	retry:
-		resList, e := readConn.MGet(store(queryKey), ttl(queryKey)).Result()
+		resList, e := readConn.MGet(ctx, store(queryKey), ttl(queryKey)).Result()
 		if e == nil {
 			if len(resList) != 2 {
 				// Should never happen
-				return typedNil(target), ErrInternal
+				return ErrInternal
 			}
 			if resList[0] != nil {
 				res, _ = resList[0].(string)
@@ -311,44 +353,33 @@ func (c *Client) Get(ctx context.Context, queryKey QueryKey, target interface{},
 				ttlRes, _ = resList[1].(string)
 			}
 		}
-		if e != nil || resList[0] == nil {
+		if e != nil || resList[0] == nil || resList[1] == nil {
 			// Empty cache, obtain lock first to query db
 			// If timeout or not cacheable error, another thread will obtain lock after ratelimit
-			updated, _ := c.primaryConn.SetNX(lock(queryKey), "", c.readThroughPerKeyLimit).Result()
+			updated, _ := c.primaryConn.SetNX(ctx, lock(queryKey), "", c.readThroughPerKeyLimit).Result()
 			if updated {
-				return c.getNoCache(ctx, queryKey, expire, f)
+				return c.getNoCacheWithValue(ctx, queryKey, f, target, noCache)
 			}
 			// Did not obtain lock, sleep and retry to wait for update
 			select {
 			case <-ctx.Done():
-				return typedNil(target), ErrTimeout
+				return ErrTimeout
 			case <-time.After(minSleep):
 				goto retry
 			}
 		}
 		bRes = []byte(res)
 
-		var inMemExpire int
-		// Tries to update ttl key if it doesn't exist
-		if ttlRes == "" {
-			// Key has expired, try to grab update lock
-			updated, _ := c.primaryConn.SetNX(ttl(queryKey), strconv.FormatInt(nowFunc().UTC().Add(expire).Unix(), 10), expire).Result()
-			if updated {
-				// Got update lock
-				return c.getNoCache(ctx, queryKey, expire, f)
-			}
-			inMemExpire = int(inMemCacheTime / time.Second)
-		} else {
-			// ttlRes should be unix time of expireAt
-			t, e := strconv.ParseInt(ttlRes, 10, 64)
-			if e != nil {
-				t = nowFunc().UTC().Add(inMemCacheTime).Unix()
-			}
-			inMemExpire = int(t - nowFunc().UTC().Unix())
+		// ttlRes should be unix time of expireAt
+		t, e := strconv.ParseInt(ttlRes, 10, 64)
+		if e != nil {
+			t = nowFunc().UTC().Add(inMemCacheTime).Unix()
 		}
+		inMemExpire := int(t - nowFunc().UTC().Unix())
+
 		// Populate inMemCache
 		if c.inMemCache != nil && inMemExpire > 0 {
-			c.inMemCache.Set([]byte(store(queryKey)), bRes, inMemExpire)
+			_ = c.inMemCache.Set([]byte(store(queryKey)), bRes, inMemExpire)
 		}
 		if c.promCounter != nil {
 			c.promCounter.WithLabelValues("REDIS HIT").Inc()
@@ -362,43 +393,65 @@ func (c *Client) Get(ctx context.Context, queryKey QueryKey, target interface{},
 		c.promCounter.WithLabelValues("HIT").Inc()
 	}
 
-	cachedNil := &nilPlaceholder{}
-	dec := gob.NewDecoder(bytes.NewBuffer(bRes))
-	e := dec.Decode(cachedNil)
-	if e == nil {
-		return typedNil(target), nil
-	}
-
-	// check for actual value
-	dec = gob.NewDecoder(bytes.NewBuffer(bRes))
-	value := reflect.ValueOf(target)
-	if value.Kind() != reflect.Ptr {
-		// If target is not a pointer, create a pointer of target type and decode to it
-		t := reflect.New(value.Type())
-		e := dec.Decode(t.Interface())
-		if e != nil {
-			return c.getNoCache(ctx, queryKey, expire, f)
-		}
-		// Dereference and return the underlying target
-		return t.Elem().Interface(), nil
-	}
-	// target is a pointer, decode directly. Use a new pointer to avoid nil target
-	t := reflect.New(value.Type().Elem())
-	e = dec.Decode(t.Interface())
+	e := unmarshal(bRes, target)
 	if e != nil {
-		return c.getNoCache(ctx, queryKey, expire, f)
+		return e
 	}
-	return t.Interface(), nil
+	return nil
 }
 
 // Invalidate implements Cache interface
 func (c *Client) Invalidate(ctx context.Context, key QueryKey) error {
-	c.deleteKey(key)
+	c.deleteKey(ctx, key)
 	return nil
 }
 
 // Set implements Cache interface
 func (c *Client) Set(ctx context.Context, key QueryKey, val interface{}, ttl time.Duration) error {
-	_, err := c.getNoCache(ctx, key, ttl, func() (interface{}, error) { return val, nil })
-	return err
+	err := c.getNoCacheWithValue(ctx, key, func() (interface{}, time.Duration, error) { return val, ttl, nil }, nil, false)
+	if err != ErrNil {
+		return err
+	}
+	return nil
+}
+
+// marshal copy from https://github.com/go-redis/cache/blob/v8/cache.go#L331 and removed compression
+func marshal(value interface{}) ([]byte, error) {
+	switch value := value.(type) {
+	case nil:
+		return nil, nil
+	case []byte:
+		return value, nil
+	case string:
+		return []byte(value), nil
+	}
+
+	b, err := msgpack.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// unmarshal copy from https://github.com/go-redis/cache/blob/v8/cache.go#L369
+func unmarshal(b []byte, value interface{}) error {
+	if len(b) == 0 {
+		return nil
+	}
+
+	switch value := value.(type) {
+	case nil:
+		return ErrNil
+	case *[]byte:
+		clone := make([]byte, len(b))
+		copy(clone, b)
+		*value = clone
+		return nil
+	case *string:
+		*value = string(b)
+		return nil
+	}
+
+	return msgpack.Unmarshal(b, value)
 }
