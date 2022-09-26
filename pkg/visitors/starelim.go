@@ -1,7 +1,7 @@
 package visitors
 
 import (
-	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/tidb/parser/ast"
 
 	"github.com/stumble/needle/pkg/schema"
 	"github.com/stumble/needle/pkg/utils"

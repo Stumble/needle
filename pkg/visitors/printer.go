@@ -1,7 +1,7 @@
 package visitors
 
 import (
-	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/tidb/parser/ast"
 )
 
 // PrintFunc - print to.

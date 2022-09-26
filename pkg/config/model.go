@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/tidb/parser/ast"
 
 	"github.com/stumble/needle/pkg/parser"
 )

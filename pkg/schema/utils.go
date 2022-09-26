@@ -1,8 +1,8 @@
 package schema
 
 import (
-	"github.com/pingcap/parser/mysql"
-	"github.com/pingcap/parser/types"
+	"github.com/pingcap/tidb/parser/mysql"
+	"github.com/pingcap/tidb/parser/types"
 )
 
 // EvalTypeToGoType - eval

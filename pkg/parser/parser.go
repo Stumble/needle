@@ -2,9 +2,9 @@ package parser
 
 import (
 	"github.com/davecgh/go-spew/spew"
-	"github.com/pingcap/parser"
-	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/mysql"
+	"github.com/pingcap/tidb/parser"
+	"github.com/pingcap/tidb/parser/ast"
+	"github.com/pingcap/tidb/parser/mysql"
 	_ "github.com/pingcap/tidb/types/parser_driver" // required by TiDB's parser
 )
 

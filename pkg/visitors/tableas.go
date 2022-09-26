@@ -1,7 +1,7 @@
 package visitors
 
 import (
-	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/tidb/parser/ast"
 )
 
 // TableAsVisitor - after apply, contains a mapping from alias to original table names.
