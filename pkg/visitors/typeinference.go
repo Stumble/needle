@@ -258,7 +258,7 @@ func (t *TypeInferenceVisitor) makeColumnRefs(tref *ast.TableRefsClause) ([]colu
 					return nil, false
 				}
 				for _, field := range src.Fields.Fields {
-					if field.Expr.GetType().Tp == mysql.TypeUnspecified {
+					if field.Expr.GetType().GetType() == mysql.TypeUnspecified {
 						t.AppendErr(NewErrorf(ErrTypeCheck,
 							"failed to type-check: %s", utils.RestoreNode(field)))
 						return nil, false
@@ -306,7 +306,7 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 		v.SetType(coltype)
 	case ast.ParamMarkerExpr: // interface
 		// type inferenced in enter, skipped.
-		if v.GetType().Tp != mysql.TypeUnspecified {
+		if v.GetType().GetType() != mysql.TypeUnspecified {
 			break
 		}
 		bop, ok := t.FindInCtxAnyOf(
@@ -334,7 +334,7 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 			// nullable input parameter.
 			coltype, ok := t.typeLookup(op.Column)
 			if ok {
-				if v.GetType().Tp == mysql.TypeUnspecified {
+				if v.GetType().GetType() == mysql.TypeUnspecified {
 					v.SetType(coltype)
 				} else {
 					// TODO(yumin): this part may be wrong, type.Equal is overly restricted,
@@ -348,7 +348,7 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 				}
 			}
 		}
-		if v.GetType().Tp == mysql.TypeUnspecified {
+		if v.GetType().GetType() == mysql.TypeUnspecified {
 			t.AppendErr(NewErrorf(ErrInvalidExpr, "ParamMarker type cannot be inferred: %s",
 				utils.RestoreNode(n)))
 			return n, true
@@ -393,7 +393,7 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 				lastType := v.Args[len(v.Args)-1].GetType().Clone()
 				t.LogWarn("partial support of coalesce function %s, "+
 					"type resolve to the last parameter: %s, notnull: %t",
-					utils.RestoreNode(v), lastType, (lastType.Flag&mysql.NotNullFlag) != 0)
+					utils.RestoreNode(v), lastType, (lastType.GetFlag()&mysql.NotNullFlag) != 0)
 				v.SetType(lastType)
 			}
 		case ast.AddDate, ast.DateAdd, ast.Date:
@@ -469,8 +469,8 @@ func bopTypeCheck(bop *ast.BinaryOperationExpr) (*types.FieldType, error) {
 	lt := bop.L.GetType().Clone()
 	rt := bop.R.GetType().Clone()
 	// remove binary flag.
-	if mysql.HasBinaryFlag(rt.Flag) {
-		rt.Flag = rt.Flag & (^mysql.BinaryFlag)
+	if mysql.HasBinaryFlag(rt.GetFlag()) {
+		rt.ToggleFlag(mysql.BinaryFlag)
 	}
 	if lt == nil || rt == nil {
 		return nil, errors.New("subterm type not resolved")
@@ -512,33 +512,35 @@ func bopTypeCheck(bop *ast.BinaryOperationExpr) (*types.FieldType, error) {
 	return newBoolType(), nil
 }
 
+// nullClone returns a type with NotNullFlag to be false.
 func nullClone(t *types.FieldType) *types.FieldType {
 	tp := t.Clone()
-	tp.Flag &= (^mysql.NotNullFlag)
+	tp.AndFlag(^mysql.NotNullFlag)
 	return tp
 }
 
+// nullClone returns a type with NotNullFlag to be true.
 func notNullClone(t *types.FieldType) *types.FieldType {
 	tp := t.Clone()
-	tp.Flag |= mysql.NotNullFlag
+	tp.AddFlag(mysql.NotNullFlag)
 	return tp
 }
 
 func newNotNullIntType() *types.FieldType {
 	rst := types.NewFieldType(mysql.TypeLong)
-	rst.Flag |= mysql.NotNullFlag
+	rst.AddFlag(mysql.NotNullFlag)
 	return rst
 }
 
 func newNotNullDatetimeType() *types.FieldType {
 	rst := types.NewFieldType(mysql.TypeDatetime)
-	rst.Flag |= mysql.NotNullFlag
+	rst.AddFlag(mysql.NotNullFlag)
 	return rst
 }
 
 func newBoolType() *types.FieldType {
 	rst := types.NewFieldType(mysql.TypeTiny)
-	rst.Flag |= mysql.IsBooleanFlag
+	rst.AddFlag(mysql.IsBooleanFlag)
 	return rst
 }
 
@@ -563,7 +565,8 @@ func aggregateFuncTypeInfer(f *ast.AggregateFuncExpr) (*types.FieldType, error) 
 		return newNotNullIntType(), nil
 	case ast.AggFuncSum, ast.AggFuncMax, ast.AggFuncMin:
 		t := f.Args[0].GetType().Clone()
-		t.Flag &^= mysql.NotNullFlag // return null if no matching rows.
+		// sum, max, and min function will return null when there's no matching rows.
+		t.AndFlag(^mysql.NotNullFlag)
 		return t, nil
 	case ast.AggFuncAvg, ast.AggFuncVarPop, ast.AggFuncVarSamp, ast.AggFuncStddevPop, ast.AggFuncStddevSamp:
 		return types.NewFieldType(mysql.TypeFloat), nil
