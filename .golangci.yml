@@ -1,0 +1,93 @@
+# Options for analysis running.
+run:
+  timeout: 5m
+  # Which dirs to skip: issues from them won't be reported.
+  # Can use regexp here: `generated.*`, regexp is applied on full path.
+  # Default value is empty list,
+  # but default dirs are skipped independently of this option's value (see skip-dirs-use-default).
+  # "/" will be replaced by current OS file path separator to properly work on Windows.
+  # skip-dirs:
+  #   - pkg/repos
+  # modules-download-mode: vendor
+
+linters:
+  disable:
+    # a subset of unused (and with some weird bugs).
+    - deadcode
+    - structcheck
+    - varcheck
+  enable:
+    - asciicheck
+    - bodyclose
+    - depguard
+    - dogsled
+    # next-time
+    # - dupl
+    - errcheck
+    - exportloopref
+    # - funlen
+    # - gochecknoglobals
+    # - gochecknoinits
+    # - gocognit
+    - goconst
+    # - gocritic
+    # - gocyclo
+    # - godox
+    - gofmt
+    # - goimports
+    - gci
+    # next-time
+    # - revive
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    # - interfacer
+    # - lll
+    # - maligned
+    - misspell
+    # - nakedret
+    # - nolintlint
+    # next-next-time
+    # - prealloc
+    - staticcheck
+    # next-time
+    # - stylecheck
+    - typecheck
+    - unconvert
+    # - unparam
+    - unused
+    # - whitespace
+    # - wsl
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - unused
+        - goconst
+
+linters-settings:
+  gosimple:
+    checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-S1039"]
+  dogsled:
+    max-blank-identifiers: 3
+  golint:
+    min-confidence: 0
+  maligned:
+    suggest-new: true
+  misspell:
+    locale: US
+  gci:
+    # Section configuration to compare against.
+    # Section names are case-insensitive and may contain parameters in ().
+    # Default: ["standard", "default"]
+    sections:
+      - standard # Captures all standard packages if they do not match another section.
+      - default # Contains all imports that could not be matched to another section type.
+      - prefix(github.com/stumble/needle)                # our internal packages
+    # Separators that should be present between sections.
+    # Default: ["newLine"]
+    section-separators:
+      - newLine
