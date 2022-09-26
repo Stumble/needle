@@ -1,13 +1,13 @@
 package codegen
 
 import (
-	"github.com/iancoleman/strcase"
-
 	"bytes"
 	"fmt"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/iancoleman/strcase"
 )
 
 var gostructTemplate *template.Template

@@ -430,7 +430,7 @@ func (suite *testSuite) TestCacheDifferentType() {
 	suite.NoError(err)
 	suite.EqualValues(v4, &v4get)
 
-	v5 := []*Dummy{&Dummy{A: 13}, &Dummy{B: 2332}, &Dummy{A: 13, B: 8921384}}
+	v5 := []*Dummy{{A: 13}, {B: 2332}, {A: 13, B: 8921384}}
 	var v5get []*Dummy
 	queryKey = QueryKey("test5")
 	suite.mockRepo.On("ReadThrough").Return(v5, nil).Once()
@@ -448,7 +448,7 @@ func (suite *testSuite) TestCacheDifferentType() {
 	suite.NoError(err)
 	suite.EqualValues(v5, v5get)
 
-	v6 := &[]*Dummy{&Dummy{A: 13}, &Dummy{B: 2332}, &Dummy{A: 13, B: 8921384}}
+	v6 := &[]*Dummy{{A: 13}, {B: 2332}, {A: 13, B: 8921384}}
 	var v6get []*Dummy
 	queryKey = QueryKey("test6")
 	suite.mockRepo.On("ReadThrough").Return(v6, nil).Once()
