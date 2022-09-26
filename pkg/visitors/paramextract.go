@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/tidb/parser/ast"
 	driver "github.com/pingcap/tidb/types/parser_driver"
 
 	"github.com/stumble/needle/pkg/schema"

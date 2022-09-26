@@ -1,8 +1,8 @@
 package visitors
 
 // import (
-// 	"github.com/pingcap/parser/ast"
-// 	"github.com/pingcap/parser/types"
+// 	"github.com/pingcap/tidb/parser/ast"
+// 	"github.com/pingcap/tidb/parser/types"
 // )
 
 // // Variable - a name, a type.

@@ -1,8 +1,8 @@
 package schema
 
 import (
-	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/types"
+	"github.com/pingcap/tidb/parser/ast"
+	"github.com/pingcap/tidb/parser/types"
 )
 
 // SQLTable represents a sql table schema, immutable.

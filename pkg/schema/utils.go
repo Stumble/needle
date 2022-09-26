@@ -1,24 +1,25 @@
 package schema
 
 import (
-	"github.com/pingcap/parser/mysql"
-	"github.com/pingcap/parser/types"
+	"github.com/pingcap/tidb/parser/mysql"
+	"github.com/pingcap/tidb/parser/types"
 )
 
 // EvalTypeToGoType - eval
 func EvalTypeToGoType(t *types.FieldType) GoType {
 	return GoType{
 		Type:    EvalTypeToGoTypeName(t),
-		NotNull: mysql.HasNotNullFlag(t.Flag),
+		NotNull: mysql.HasNotNullFlag(t.GetFlag()),
 	}
 }
 
 // EvalTypeToGoTypeName - eval
 func EvalTypeToGoTypeName(t *types.FieldType) GoTypeName {
 	// XXX(yumin): the first cond is a kind of hack, should visit this part later.
-	if (t.Tp == mysql.TypeTiny && t.Flen == 1) || mysql.HasIsBooleanFlag(t.Flag) {
+	if (t.GetType() == mysql.TypeTiny && t.GetFlen() == 1) || mysql.HasIsBooleanFlag(t.GetFlag()) {
 		return GoTypeBool
 	}
+	// TODO(yumin): support type	decimal, timestamp, duration, and maybe enum
 	et := t.EvalType()
 	switch et {
 	case types.ETInt:

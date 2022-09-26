@@ -3,7 +3,7 @@ package visitors
 import (
 	"testing"
 
-	// "github.com/pingcap/parser/ast"
+	// "github.com/pingcap/tidb/parser/ast"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/stumble/needle/pkg/parser"
