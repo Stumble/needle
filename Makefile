@@ -3,7 +3,7 @@ NAME := needle
 MAIN_GO := ./cmd/needle
 GO_VERSION := $(shell $(GO) version | sed -e 's/^[^0-9.]*\([0-9.]*\).*/\1/')
 CGO_ENABLED = 0
-COMMIT_HASH := $(shell git rev-parse --short HEAD)
+COMMIT_HASH := $(shell git --no-pager describe --tags --always --dirty)
 
 REDIS_DOCKER_NAME=$(NAME)-redis
 REDIS_PORT=6379

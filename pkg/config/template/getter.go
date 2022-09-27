@@ -1,23 +1,13 @@
 package template
 
 import (
-	"io/ioutil"
+	_ "embed"
 )
 
-func openFile(path string) ([]byte, error) {
-	file, err := templateAssets.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return ioutil.ReadAll(file)
-}
+//go:embed templates/init.tmpl
+var configInitTemplate string
 
-// GetQueryFuncTemplate - return a query func template
+// GetInitTemplate return an example XML template
 func GetInitTemplate() string {
-	bytes, err := openFile("init.tmpl")
-	if err != nil {
-		panic(err)
-	}
-	return string(bytes)
+	return configInitTemplate
 }
