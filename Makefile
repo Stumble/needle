@@ -3,6 +3,7 @@ NAME := needle
 MAIN_GO := ./cmd/needle
 GO_VERSION := $(shell $(GO) version | sed -e 's/^[^0-9.]*\([0-9.]*\).*/\1/')
 CGO_ENABLED = 0
+COMMIT_HASH := $(shell git rev-parse --short HEAD)
 
 REDIS_DOCKER_NAME=$(NAME)-redis
 REDIS_PORT=6379
@@ -44,10 +45,10 @@ pre-build:
 	git submodule update --init --recursive
 
 build: pre-build
-	GO111MODULE=on $(GO) build -o build/$(NAME) $(MAIN_GO)
+	GO111MODULE=on $(GO) build -ldflags="-X github.com/stumble/needle/pkg/vcs.Commit=$(COMMIT_HASH)" -o build/$(NAME) $(MAIN_GO)
 
 install: pre-build
-	cd cmd/needle && GO111MODULE=on $(GO) install
+	cd cmd/needle && GO111MODULE=on $(GO) install -ldflags="-X github.com/stumble/needle/pkg/vcs.Commit=$(COMMIT_HASH)"
 
 .PHONY: lint lint-fix
 lint:

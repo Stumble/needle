@@ -9,6 +9,7 @@ import (
 	"github.com/stumble/needle/pkg/schema"
 	"github.com/stumble/needle/pkg/utils"
 	"github.com/stumble/needle/pkg/visitors"
+	"github.com/stumble/needle/pkg/vcs"
 )
 
 // GoParam -
@@ -256,7 +257,7 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 		"// nolint: unused\n" + mainStruct.ArglistFunc() + "\n"
 
 	template := codegen.RepoTemplate{
-		NeedleVersion:       "0.1.0",
+		NeedleVersion:       vcs.Commit,
 		TableSchema:         repo.Tables[0].SQL(),
 		PkgName:             pkgName,
 		InterfaceName:       interfaceName,
