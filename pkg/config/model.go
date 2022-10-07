@@ -12,12 +12,17 @@ import (
 	"time"
 
 	"github.com/pingcap/tidb/parser/ast"
+	"github.com/rs/zerolog/log"
 
 	"github.com/stumble/needle/pkg/parser"
 )
 
 const (
 	cacheForever = "forever"
+)
+
+var (
+	ErrInvalidIdentifier = errors.New("Invalid identifier")
 )
 
 // SQLStmt is just a string.
@@ -53,14 +58,14 @@ func (s Schema) HiddenFields() []string {
 
 // IsValid return nil if valid.
 func (s Schema) IsValid() error {
-	if !validName(s.Name) {
-		return errors.New("invalid schema name: " + string(s.Name))
+	if err := validName(s.Name); err != nil {
+		return err
 	}
-	if !validName(s.MainObj) {
-		return errors.New("invalid mainObj name: " + string(s.MainObj))
+	if err := validName(s.MainObj); err != nil {
+		return err
 	}
 	if s.Name == s.MainObj {
-		return errors.New("mainObj name and schema name cannot be the same: " + s.Name)
+		return errors.New("mainObj name and schema name cannot be the same.")
 	}
 	return nil
 }
@@ -97,8 +102,8 @@ type Query struct {
 
 // IsValid nil if Query is valid.
 func (q Query) IsValid() error {
-	if !validName(q.Name) {
-		return errors.New("invalid query name near: " + string(q.SQL) + " name: " + q.Name)
+	if err := validName(q.Name); err != nil {
+		return fmt.Errorf("invalid query name: %s, because %w", q.Name, err)
 	}
 	if !(q.Type == single || q.Type == many) {
 		return errors.New("query type illegal:" + q.Name)
@@ -113,7 +118,7 @@ func (q Query) IsValid() error {
 		}
 	}
 	if q.CacheDurationStr == "" {
-		fmt.Printf("WARNING: query %s is not cached\n", q.Name)
+		log.Warn().Msgf("WARNING: query %s is not cached\n", q.Name)
 	}
 	return nil
 }
@@ -152,8 +157,8 @@ type Mutation struct {
 
 // IsValid - return nil if valid.
 func (m Mutation) IsValid() error {
-	if !validName(m.Name) {
-		return errors.New("invalid mutation name: " + string(m.SQL))
+	if err := validName(m.Name); err != nil {
+		return fmt.Errorf("invalid mutation name: %s, because %w", m.Name, err)
 	}
 	return nil
 }
@@ -163,44 +168,47 @@ func (m Mutation) InvalidateQueries() []string {
 	return commaSplitList(m.InvalidateStr)
 }
 
-// parseConfig -
-func parseConfig(config io.Reader, path string, doImport bool) (*NeedleConfig, error) {
+// parseConfig
+func parseConfig(config io.Reader, path string, recursiveImport bool) (*NeedleConfig, error) {
 	bytes, err := ioutil.ReadAll(config)
 	if err != nil {
-		return nil, err
+		return nil, errorFormatter(path, "load XML", err)
 	}
 	var data NeedleConfig
 	err = xml.Unmarshal(bytes, &data)
 	if err != nil {
-		return nil, errors.New("xml unmarshal error: " + err.Error())
+		return nil, errorFormatter(path, "parse XML", err)
 	}
 
 	// validate schema
 	err = data.Schema.IsValid()
 	if err != nil {
-		return nil, err
+		return nil, errorFormatter(path, "validate schema names", err)
 	}
 
-	for i, imp := range data.Schema.Refs {
-		src := filepath.Join(filepath.Dir(path), imp.Src)
-		// one layer import, do not recursively import because people can write cyclic deps.
-		importedConf, err := parseConfigFromFileImport(src, false)
-		if err != nil {
-			return nil, err
+	// import referenced schemas, but do not recursively import all.
+	if recursiveImport {
+		for i, imp := range data.Schema.Refs {
+			src := filepath.Join(filepath.Dir(path), imp.Src)
+			importedConf, err := parseConfigFromFileImport(src, false)
+			if err != nil {
+				return nil, errorFormatter(path, "import referenced schema: "+src, err)
+			}
+			data.Schema.Refs[i].SQL = importedConf.Schema.SQL
 		}
-		data.Schema.Refs[i].SQL = importedConf.Schema.SQL
 	}
 
 	// validate queries.
 	data.Stmts.QueryMap = make(map[string]*Query)
 	for i, q := range data.Stmts.Queries {
-		err := q.IsValid()
-		if err != nil {
-			return nil, err
+		if err := q.IsValid(); err != nil {
+			return nil, errorFormatter(path,
+				fmt.Sprintf("validate %d-th query %s", i, q.Name), err)
 		}
 		_, has := data.Stmts.QueryMap[q.Name]
 		if has {
-			return nil, errors.New("duplicated query name: " + q.Name)
+			return nil, errorFormatter(path, fmt.Sprintf("validate %d-th query %s", i, q.Name),
+				errors.New("duplicated query name: "+q.Name))
 		}
 		data.Stmts.QueryMap[q.Name] = &data.Stmts.Queries[i]
 	}
@@ -208,19 +216,21 @@ func parseConfig(config io.Reader, path string, doImport bool) (*NeedleConfig, e
 	// validate mutations.
 	data.Stmts.MutationMap = make(map[string]*Mutation)
 	for i, m := range data.Stmts.Mutations {
-		err := m.IsValid()
-		if err != nil {
-			return nil, err
+		if err := m.IsValid(); err != nil {
+			return nil, errorFormatter(path,
+				fmt.Sprintf("validate %d-th mutation %s", i, m.Name), err)
 		}
 
 		// name check
 		_, dupName := data.Stmts.QueryMap[m.Name]
 		if dupName {
-			return nil, errors.New("mutation name conflicts with query name: " + m.Name)
+			return nil, errorFormatter(path, fmt.Sprintf("validate %d-th mutation %s", i, m.Name),
+				errors.New("mutation name conflicts with query name: "+m.Name))
 		}
 		_, dupName = data.Stmts.MutationMap[m.Name]
 		if dupName {
-			return nil, errors.New("mutation name conflicts: " + m.Name)
+			return nil, errorFormatter(path, fmt.Sprintf("validate %d-th mutation %s", i, m.Name),
+				errors.New("mutation name conflicts: "+m.Name))
 		}
 		data.Stmts.MutationMap[m.Name] = &data.Stmts.Mutations[i]
 
@@ -228,11 +238,12 @@ func parseConfig(config io.Reader, path string, doImport bool) (*NeedleConfig, e
 		for _, q := range invalidates {
 			query, has := data.Stmts.QueryMap[q]
 			if !has {
-				return nil, errors.New("'invalidate query' not found: " + q + " in " + m.Name)
+				return nil, errorFormatter(path, fmt.Sprintf("validate %d-th mutation %s", i, m.Name),
+					fmt.Errorf("failed to find the query %s", q))
 			}
 			if query.CacheDuration() == nil {
-				return nil, errors.New(
-					"a query in invalidate list is not cached: " + q + " in " + m.Name)
+				return nil, errorFormatter(path, fmt.Sprintf("validate %d-th mutation %s", i, m.Name),
+					fmt.Errorf("query %s in invalidate list is not cached: ", q))
 			}
 		}
 	}
@@ -240,13 +251,13 @@ func parseConfig(config io.Reader, path string, doImport bool) (*NeedleConfig, e
 	return &data, nil
 }
 
-func parseConfigFromFileImport(path string, doImport bool) (*NeedleConfig, error) {
+func parseConfigFromFileImport(path string, recursiveImport bool) (*NeedleConfig, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	return parseConfig(file, path, doImport)
+	return parseConfig(file, path, recursiveImport)
 }
 
 // ParseConfigFromFile -
@@ -269,19 +280,28 @@ var reservedIdentifies = []string{
 	"Check",
 }
 
-func validName(str string) bool {
+func validName(str string) error {
 	if len(str) < 2 {
-		return false
+		return fmt.Errorf("%w, must have length must >= 2, but %s is not",
+			ErrInvalidIdentifier, str)
 	}
 	for _, v := range reservedIdentifies {
 		if v == str {
-			return false
+			return fmt.Errorf("%s is a reserved identifier", v)
 		}
 	}
-	return startWithUpper(str)
+	if !startWithUpper(str) {
+		return fmt.Errorf("%w, name must start with an upper-cased letter, but %s is not",
+			ErrInvalidIdentifier, str)
+	}
+	return nil
 }
 
 func startWithUpper(str string) bool {
 	f := string(str[0])
 	return strings.ToUpper(f) == f
+}
+
+func errorFormatter(file string, section string, err error) error {
+	return fmt.Errorf("Compiling %s, %s, error found: %w", file, section, err)
 }

@@ -9,8 +9,9 @@ import (
 )
 
 func GenTemplate(objName string) (string, error) {
-	if !validName(objName) {
-		return "", errors.New("Invalid objName, length < 2 or not start with Uppercase: " + objName)
+	if err := validName(objName); err != nil {
+		return "", errors.New(
+			"Invalid objName, length < 2 or not start with Uppercase: " + objName)
 	}
 	t, err := template.New("initTmpl").Parse(data.GetInitTemplate())
 	if err != nil {
@@ -28,5 +29,4 @@ func GenTemplate(objName string) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
-
 }

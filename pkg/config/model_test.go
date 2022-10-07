@@ -1,18 +1,22 @@
 package config
 
 import (
-	"fmt"
-	// "os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-// more test cases.
-func TestBasic(t *testing.T) {
-	assert := assert.New(t)
-	config, err := ParseConfigFromFile("testdata/orders.xml")
-	assert.Nil(err)
+type modelTestSuite struct {
+	suite.Suite
+}
 
-	fmt.Println(config.Schema)
+func TestModelTestSuite(t *testing.T) {
+	suite.Run(t, new(modelTestSuite))
+}
+
+func (suite modelTestSuite) TestBasic() {
+	config, err := ParseConfigFromFile("testdata/orders.xml")
+	suite.Require().NoError(err)
+	suite.Equal("Orders", config.Schema.Name)
+	suite.Equal("Order", config.Schema.MainObj)
 }
