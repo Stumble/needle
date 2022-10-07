@@ -48,7 +48,7 @@ type Schema struct {
 
 // HiddenFields return hidden fields of this schema.
 func (s Schema) HiddenFields() []string {
-	return dotSplitList(s.HiddenFieldsStr)
+	return commaSplitList(s.HiddenFieldsStr)
 }
 
 // IsValid return nil if valid.
@@ -160,7 +160,7 @@ func (m Mutation) IsValid() error {
 
 // InvalidateQueries - query names
 func (m Mutation) InvalidateQueries() []string {
-	return dotSplitList(m.InvalidateStr)
+	return commaSplitList(m.InvalidateStr)
 }
 
 // parseConfig -
@@ -254,7 +254,7 @@ func ParseConfigFromFile(path string) (*NeedleConfig, error) {
 	return parseConfigFromFileImport(path, true)
 }
 
-func dotSplitList(str string) []string {
+func commaSplitList(str string) []string {
 	strs := strings.Split(strings.Trim(strings.TrimSpace(str), ","), ",")
 	for i := range strs {
 		strs[i] = strings.TrimSpace(strs[i])
