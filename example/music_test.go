@@ -60,7 +60,7 @@ func (suite *musicTestSuite) TestInsertUseGolden() {
 	suite.Golden("musics", musicTableCodec{repo: suite.repo})
 }
 
-func (suite *musicTestSuite) TestQueryUseLoad() {
+func (suite *musicTestSuite) TestQueryByID() {
 	suite.LoadState("alice_data_set.input.json", musicTableCodec{repo: suite.repo})
 	musics, err := suite.repo.ListMusicsLTSpotifyID(context.Background(),
 		&ListMusicsLTSpotifyIDArgs{
@@ -71,4 +71,14 @@ func (suite *musicTestSuite) TestQueryUseLoad() {
 	str, err := json.Marshal(musics)
 	suite.Require().NoError(err)
 	suite.Equal(`[{"author":"Alice","name":"Bob Land 2","album":"Crazy ideas","spotify_id":1000,"released_at":"1999-01-01T00:16:40Z","created_at":"1970-01-01T00:00:00Z","updated_at":"1970-01-01T00:00:00Z"},{"author":"Alice","name":"No more bob","album":"Crazy ideas","spotify_id":1001,"released_at":"2000-01-01T00:16:40Z","created_at":"1970-01-01T00:00:00Z","updated_at":"1970-01-01T00:00:00Z"}]`, string(str))
+}
+
+func (suite *musicTestSuite) TestQuerySearch() {
+	suite.LoadState("alice_data_set.input.json", musicTableCodec{repo: suite.repo})
+	musics, err := suite.repo.Search(context.Background(), &SearchArgs{Name: "Bob%"})
+	suite.Require().NoError(err)
+	suite.Equal(2, len(musics))
+	str, err := json.Marshal(musics)
+	suite.Require().NoError(err)
+	suite.Equal(`[{"author":"Alice","name":"Bob Land","album":"Crazy ideas","spotify_id":999,"released_at":"1998-01-01T00:16:40Z","created_at":"1970-01-01T00:00:00Z","updated_at":"1970-01-01T00:00:00Z"},{"author":"Alice","name":"Bob Land 2","album":"Crazy ideas","spotify_id":1000,"released_at":"1999-01-01T00:16:40Z","created_at":"1970-01-01T00:00:00Z","updated_at":"1970-01-01T00:00:00Z"}]`, string(str))
 }
