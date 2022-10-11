@@ -57,7 +57,7 @@ type GoType struct {
 
 func (g GoType) String() string {
 	if g.NotNull {
-		return string(g.Type)
+		return g.Type
 	}
 	return "*" + g.Type
 }

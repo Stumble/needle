@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+
 	"github.com/stumble/needle/pkg/codegen"
 	"github.com/stumble/needle/pkg/driver"
 	"github.com/stumble/needle/pkg/schema"
@@ -301,7 +302,7 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 func GenLoadDumpFunc(tb schema.SQLTable) *codegen.LoadDumpFunc {
 	rst := codegen.LoadDumpFunc{TableName: tb.Name()}
 	for _, col := range tb.StarColumns() {
-		rst.Columns = append(rst.Columns, fmt.Sprintf("%s", col.Name()))
+		rst.Columns = append(rst.Columns, col.Name())
 	}
 	for _, idx := range tb.Indexes() {
 		if idx.IsPrimaryKey() {
@@ -318,7 +319,7 @@ func GenMainStruct(tb schema.SQLTable, name string) *codegen.GoStruct {
 	for _, col := range tb.StarColumns() {
 		ft := calcFieldType(col.GoType(), false)
 		rst.Fields = append(rst.Fields, codegen.NewGoField(
-			strings.Title(col.Name()),
+			utils.Title(col.Name()),
 			ft,
 			fmt.Sprintf(`json:"%s,omitempty"`, strcase.ToSnake(col.Name()))))
 	}
@@ -337,9 +338,9 @@ func GenOutputStruct(outputName string, output []GoVar) *codegen.GoStruct {
 	}
 	for _, v := range output {
 		ft := calcFieldType(v.Type, false)
-		nm := strings.Title(v.Name)
+		nm := utils.Title(v.Name)
 		if names[v.Name] > 1 {
-			nm = strings.Title(v.TableName) + nm
+			nm = utils.Title(v.TableName) + nm
 		}
 		rst.Fields = append(rst.Fields, codegen.NewGoField(nm, ft, ""))
 	}
@@ -354,25 +355,25 @@ func GenInputStruct(inputName string, params []GoParam) *codegen.GoStruct {
 	rst := codegen.GoStruct{Name: inputName}
 	names := make(map[string]int)
 	for _, v := range params {
-		nm := strings.Title(v.Name)
+		nm := utils.Title(v.Name)
 		names[nm] = names[nm] + 1
 	}
 
 	tablenames := make(map[string]int)
 	for _, v := range params {
-		nm := strings.Title(v.TableName) + strings.Title(v.Name)
+		nm := utils.Title(v.TableName) + utils.Title(v.Name)
 		tablenames[nm] = tablenames[nm] + 1
 	}
 
 	nameUsed := make(map[string]int)
 	for _, v := range params {
 		ft := calcFieldType(v.GoType(), v.InPattern)
-		nm := strings.Title(v.Name)
+		nm := utils.Title(v.Name)
 		if v.InPattern {
 			nm += "List"
 		}
 		if names[nm] > 1 {
-			tnm := strings.Title(v.TableName) + strings.Title(v.Name)
+			tnm := utils.Title(v.TableName) + utils.Title(v.Name)
 			if tablenames[tnm] > 1 {
 				nm = fmt.Sprintf("%s%d", tnm, nameUsed[tnm])
 				nameUsed[tnm]++
@@ -390,7 +391,7 @@ func calcFieldType(t schema.GoType, list bool) codegen.GoType {
 	if t.Type == schema.GoTypeTime {
 		return codegen.GoType{
 			Pkg:       "time",
-			ID:        strings.Title(string(t.Type)),
+			ID:        utils.Title((t.Type)),
 			IsList:    list,
 			IsPointer: !t.NotNull,
 		}
@@ -398,14 +399,14 @@ func calcFieldType(t schema.GoType, list bool) codegen.GoType {
 	if t.Type == schema.GoTypeJson {
 		return codegen.GoType{
 			Pkg:       "json",
-			ID:        strings.Title(string(t.Type)),
+			ID:        utils.Title((t.Type)),
 			IsList:    list,
 			IsPointer: !t.NotNull,
 		}
 	}
 	return codegen.GoType{
 		Pkg:       "",
-		ID:        string(t.Type),
+		ID:        (t.Type),
 		IsList:    list,
 		IsPointer: !t.NotNull,
 	}

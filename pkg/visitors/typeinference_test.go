@@ -25,7 +25,7 @@ func (suite *TypeInferenceTestSuite) TestBasic() {
 	suite.Require().Nil(err)
 
 	for _, v := range repo.Queries {
-		ti := NewTypeInferenceVisitor(repo.Tables, make(map[string]string))
+		ti := NewTypeInferenceVisitor(repo.Tables)
 		v.Node.Accept(ti)
 		suite.Require().Nil(ti.Errors())
 	}

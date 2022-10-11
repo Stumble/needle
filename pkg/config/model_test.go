@@ -14,7 +14,7 @@ func TestModelTestSuite(t *testing.T) {
 	suite.Run(t, new(modelTestSuite))
 }
 
-func (suite modelTestSuite) TestBasic() {
+func (suite *modelTestSuite) TestBasic() {
 	config, err := ParseConfigFromFile("testdata/orders.xml")
 	suite.Require().NoError(err)
 	suite.Equal("Orders", config.Schema.Name)
