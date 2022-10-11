@@ -312,6 +312,7 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 		bop, ok := t.FindInCtxAnyOf(
 			(*ast.Limit)(nil),
 			(*ast.PatternInExpr)(nil),
+			(*ast.PatternLikeExpr)(nil),
 			(*ast.BetweenExpr)(nil),
 			(*ast.BinaryOperationExpr)(nil),
 			(*ast.Assignment)(nil),
@@ -325,6 +326,8 @@ func (t *TypeInferenceVisitor) Leave(n ast.Node) (ast.Node, bool) {
 		case *ast.BinaryOperationExpr:
 			v.SetType(notNullClone(op.L.GetType()))
 		case *ast.PatternInExpr:
+			v.SetType(notNullClone(op.Expr.GetType()))
+		case *ast.PatternLikeExpr:
 			v.SetType(notNullClone(op.Expr.GetType()))
 		case *ast.BetweenExpr:
 			v.SetType(notNullClone(op.Expr.GetType()))
