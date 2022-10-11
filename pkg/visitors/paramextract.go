@@ -59,8 +59,14 @@ var _ ast.Visitor = &ParamExtractVisitor{}
 
 // returns name fqname succ
 func (c *ParamExtractVisitor) findNameInContext(n ast.Node) (string, string, bool) {
-	op, ok := c.FindInCtxAnyOf((*ast.Limit)(nil), (*ast.BinaryOperationExpr)(nil),
-		(*ast.PatternInExpr)(nil), (*ast.InsertStmt)(nil), (*ast.Assignment)(nil))
+	op, ok := c.FindInCtxAnyOf(
+		(*ast.Limit)(nil),
+		(*ast.BinaryOperationExpr)(nil),
+		(*ast.PatternLikeExpr)(nil),
+		(*ast.PatternInExpr)(nil),
+		(*ast.InsertStmt)(nil),
+		(*ast.Assignment)(nil),
+	)
 	if !ok {
 		return "", "", false
 	}
@@ -75,6 +81,14 @@ func (c *ParamExtractVisitor) findNameInContext(n ast.Node) (string, string, boo
 			return "", "", false
 		}
 	case *ast.PatternInExpr:
+		expr, isRef := v.Expr.(*ast.ColumnNameExpr)
+		if !isRef {
+			c.AppendErr(NewErrorf(ErrNotSupported,
+				"InPattern with noncolumn expr: %s", utils.RestoreNode(v)))
+			return "", "", false
+		}
+		return expr.Name.Name.String(), expr.Name.Table.String(), true
+	case *ast.PatternLikeExpr:
 		expr, isRef := v.Expr.(*ast.ColumnNameExpr)
 		if !isRef {
 			c.AppendErr(NewErrorf(ErrNotSupported,

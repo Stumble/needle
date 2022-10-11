@@ -26,6 +26,11 @@
         SELECT * FROM Musics;
       </sql>
     </query>
+    <query name="Search" type="many" cacheDuration="5s">
+      <sql>
+        SELECT * FROM Musics WHERE Name LIKE ?;
+      </sql>
+    </query>
     <query name="ListMusicsLTSpotifyID" type="many" cacheDuration="5s">
       <sql>
         SELECT * FROM Musics WHERE SpotifyID > ?;
