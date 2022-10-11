@@ -13,12 +13,17 @@ import (
     "encoding/json"
 )
 
+// edit result before dump
+type BeforeDump func(m *{{.MainStructName}})
+
 // {{.InterfaceName}} - main interface.
 type {{.InterfaceName}} interface {
 {{range .InterfaceSignatures}}
 {{- .}}
 {{end}}
     Check(ctx context.Context) error
+    Load(ctx context.Context, data []byte) error
+    Dump(ctx context.Context, beforeDump ...BeforeDump) ([]byte, error)
 }
 
 type {{.RepoName}} struct {
@@ -55,6 +60,8 @@ func (s {{.RepoName}}) Check(ctx context.Context) error {
 	}
 	return nil
 }
+
+{{.LoadDump}}
 
 {{range .Queries}}
 {{.}}

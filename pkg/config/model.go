@@ -278,6 +278,9 @@ func commaSplitList(str string) []string {
 
 var reservedIdentifies = []string{
 	"Check",
+	"Dump",
+	"Load",
+	// "BulkInsert",
 }
 
 func validName(str string) error {

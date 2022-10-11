@@ -89,7 +89,9 @@ func (t *TableInfo) StarColumns() (rst []SQLColumn) {
 
 // Indexes - implements SQLTable
 // Should include constraints and keys with pk option.
-func (t *TableInfo) Indexes() []SQLIndex {
-	// TODO(yumin): do it.
-	return nil
+func (t *TableInfo) Indexes() (rst []SQLIndex) {
+	for _, c := range t.stmt.Constraints {
+		rst = append(rst, NewIndexInfo(c))
+	}
+	return
 }

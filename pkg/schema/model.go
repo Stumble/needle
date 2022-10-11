@@ -27,7 +27,8 @@ type SQLColumn interface {
 // SQLIndex - index only, immutable.
 type SQLIndex interface {
 	Name() string
-	Keys() []SQLColumn
+	IsPrimaryKey() bool
+	KeyNames() []string
 }
 
 // GoTypeName is the name of the type that can be used in golang.

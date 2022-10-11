@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/iancoleman/strcase"
 	"github.com/stumble/needle/pkg/codegen"
 	"github.com/stumble/needle/pkg/driver"
 	"github.com/stumble/needle/pkg/schema"
 	"github.com/stumble/needle/pkg/utils"
-	"github.com/stumble/needle/pkg/visitors"
 	"github.com/stumble/needle/pkg/vcs"
+	"github.com/stumble/needle/pkg/visitors"
 )
 
 // GoParam -
@@ -256,6 +257,18 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 		"// nolint: unused\n" + mainStruct.ScanFunc() + "\n" +
 		"// nolint: unused\n" + mainStruct.ArglistFunc() + "\n"
 
+	loadDumpFunc := GenLoadDumpFunc(repo.Tables[0])
+	loaddumpTmpl := codegen.LoadDumpFuncTemplate{
+		RepoName:       repoName,
+		MainStructName: mainStruct.Name,
+		SelectAllSQL:   loadDumpFunc.SelectSQL(),
+		InsertRowSQL:   loadDumpFunc.InsertSQL(),
+	}
+	loaddumpStr, err := loaddumpTmpl.Generate()
+	if err != nil {
+		panic(err)
+	}
+
 	template := codegen.RepoTemplate{
 		NeedleVersion:       vcs.Commit,
 		TableSchema:         repo.Tables[0].SQL(),
@@ -265,6 +278,8 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 		RepoName:            repoName,
 		Statements:          sqlStmtDecls,
 		MainStruct:          mainStructStr,
+		MainStructName:      mainStruct.Name,
+		LoadDump:            loaddumpStr,
 		Queries:             queriesStr,
 		Mutations:           mutationsStr,
 	}
@@ -282,13 +297,30 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 	return nil
 }
 
+// GenLoadDumpFunc returns a LoadDumpFunc struct.
+func GenLoadDumpFunc(tb schema.SQLTable) *codegen.LoadDumpFunc {
+	rst := codegen.LoadDumpFunc{TableName: tb.Name()}
+	for _, col := range tb.StarColumns() {
+		rst.Columns = append(rst.Columns, fmt.Sprintf("%s", col.Name()))
+	}
+	for _, idx := range tb.Indexes() {
+		if idx.IsPrimaryKey() {
+			rst.PrimaryKey = idx.KeyNames()
+			break
+		}
+	}
+	return &rst
+}
+
 // GenMainStruct - generate main struct.
 func GenMainStruct(tb schema.SQLTable, name string) *codegen.GoStruct {
 	rst := codegen.GoStruct{Name: name}
 	for _, col := range tb.StarColumns() {
 		ft := calcFieldType(col.GoType(), false)
 		rst.Fields = append(rst.Fields, codegen.NewGoField(
-			strings.Title(col.Name()), ft, ""))
+			strings.Title(col.Name()),
+			ft,
+			fmt.Sprintf(`json:"%s,omitempty"`, strcase.ToSnake(col.Name()))))
 	}
 	rst.Comments = "the main struct."
 	return &rst
