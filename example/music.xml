@@ -1,0 +1,47 @@
+<needle>
+  <schema name="Musics" hiddenFields="" mainObj="Music">
+    <sql>
+      CREATE TABLE Musics (
+        Author       VARCHAR(200) NOT NULL,
+        Name         VARCHAR(200) NOT NULL,
+        Album        VARCHAR(200) NOT NULL,
+        SpotifyID    INT NOT NULL,
+        DownloadPath TEXT,
+        ReleasedAt   datetime NOT NULL,
+        CreatedAt    datetime NOT NULL,
+        UpdatedAt    datetime NOT NULL,
+      PRIMARY KEY (`Author`, `Name`),
+      UNIQUE (`Author`, `Name`),
+      INDEX (`Author`, `ReleasedAt`)
+      <!-- UpdatedAt DATETIME NOT NULL, -->
+      <!-- CreatedAt DATETIME NOT NULL -->
+      )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    </sql>
+    <!-- add references here if query or mutation joined other tables. -->
+    <!-- <ref src="foo/bar.xml"></ref> -->
+  </schema>
+  <stmts>
+    <query name="GetMusics" type="many" cacheDuration="5s">
+      <sql>
+        SELECT * FROM Musics;
+      </sql>
+    </query>
+    <query name="ListMusicsLTSpotifyID" type="many" cacheDuration="5s">
+      <sql>
+        SELECT * FROM Musics WHERE SpotifyID > ?;
+      </sql>
+    </query>
+    <query name="GetMusicByAuthorAndName" type="single" cacheDuration="5m">
+      <sql>
+        SELECT * FROM Musics WHERE Author = ? AND Name = ?;
+      </sql>
+    </query>
+    <mutation name="InsertMusic" invalidate="">
+      <sql>
+        INSERT INTO Musics
+        (Author, Name, Album, SpotifyID, DownloadPath, ReleasedAt, CreatedAt, UpdatedAt)
+        VALUES(?, ?, ?, ?, ?, ?, NOW(), NOW());
+      </sql>
+    </mutation>
+  </stmts>
+</needle>
