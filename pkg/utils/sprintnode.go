@@ -10,7 +10,11 @@ import (
 // RestoreNode return a node to string.
 func RestoreNode(n ast.Node) string {
 	var sb strings.Builder
-	formatCtx := format.NewRestoreCtx(format.RestoreKeyWordUppercase|format.RestoreStringSingleQuotes, &sb)
-	n.Restore(formatCtx)
+	formatCtx := format.NewRestoreCtx(
+		format.RestoreKeyWordUppercase|format.RestoreStringSingleQuotes, &sb)
+	err := n.Restore(formatCtx)
+	if err != nil {
+		panic(err)
+	}
 	return sb.String()
 }

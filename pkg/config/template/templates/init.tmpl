@@ -9,7 +9,7 @@
     <!-- <ref src="foo/bar.xml"></ref> -->
   </schema>
   <stmts>
-    <query name="Get{{.ObjName}}s" type="many" cacheDuration="5m">
+    <query name="Get{{.ObjName}}s" type="many" cacheDuration="5s">
       <sql>
         SELECT * FROM {{.TableName}};
       </sql>
@@ -19,7 +19,7 @@
         SELECT * FROM {{.TableName}} WHERE {{.ObjName}}ID = ?;
       </sql>
     </query>
-    <mutation name="Insert{{.ObjName}}" invalidate="Get{{.ObjName}}ByID,Get{{.ObjName}}s">
+    <mutation name="Insert{{.ObjName}}" invalidate="Get{{.ObjName}}ByID">
       <sql>
         INSERT INTO {{.TableName}}
         ({{.ObjName}}ID)

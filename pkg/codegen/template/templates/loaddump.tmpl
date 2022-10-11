@@ -1,0 +1,54 @@
+func (s {{.RepoName}}) Dump(ctx context.Context, beforeDump ...BeforeDump) ([]byte, error) {
+	sql := "{{.SelectAllSQL}}"
+	rows, err := s.exec.Query(ctx, sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rst []{{.MainStructName}}
+	for rows.Next() {
+		row := {{.MainStructName}}{}
+		err := row.scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		for _, applyBeforeDump := range beforeDump {
+			applyBeforeDump(&row)
+		}
+		rst = append(rst, row)
+	}
+
+	// must shut it down with no error.
+	rerr := rows.Close()
+	if rerr != nil {
+		return nil, rerr
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	bytes, err := json.MarshalIndent(rst, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return bytes, nil
+}
+
+func (s {{.RepoName}}) Load(ctx context.Context, data []byte) error {
+	rows := make([]{{.MainStructName}}, 0)
+	err := json.Unmarshal(data, &rows)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+        arglist, _ := row.arglist()
+		_, err := s.exec.Exec(
+			ctx,
+			"{{.InsertRowSQL}}",
+			arglist...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

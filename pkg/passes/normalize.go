@@ -4,7 +4,6 @@ import (
 	"github.com/pingcap/tidb/parser/ast"
 
 	"github.com/stumble/needle/pkg/driver"
-	"github.com/stumble/needle/pkg/schema"
 	"github.com/stumble/needle/pkg/visitors"
 	// "github.com/stumble/needle/pkg/utils"
 )
@@ -56,9 +55,9 @@ func (n NormalizePass) Run(repo *driver.Repo) error {
 	return nil
 }
 
-func collectTableNames(tables []schema.SQLTable) (rst []string) {
-	for _, t := range tables {
-		rst = append(rst, t.Name())
-	}
-	return
-}
+// func collectTableNames(tables []schema.SQLTable) (rst []string) {
+// 	for _, t := range tables {
+// 		rst = append(rst, t.Name())
+// 	}
+// 	return
+// }

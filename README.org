@@ -224,6 +224,13 @@ convert a needle config and convert it to Driver.Repo.
 *** MysqlCodegen
 
 
+* Test utils
+All generated repositories will have two functions for testing.
+** Load 
+Read JSON bytes, unmarshal, and save them to database.
+** Dump
+Dump the whole table into JSON bytes.
+
 * Unsupported
 1. `BETWEEN` clause, replace it with `a >= xx AND a <= yy`
 2. `Alter Table` is not supported for now.

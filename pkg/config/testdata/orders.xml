@@ -13,7 +13,7 @@
     <ref src="customers.xml"></ref>
   </schema>
   <stmts>
-    <query name="getOrdersByCustomerID" type="single" cacheDuration="10s">
+    <query name="GetOrdersByCustomerID" type="single" cacheDuration="10s">
       <sql>
         SELECT Orders.OrderID, Customers.CustomerName, Orders.OrderDate
         FROM Orders
@@ -29,7 +29,7 @@
         FROM Orders;
       </sql>
     </query>
-    <mutation name="UpdateOrder" invalidate="getOrdersByCustomerID, GetOrders">
+    <mutation name="UpdateOrder" invalidate="GetOrdersByCustomerID, GetOrders">
       <sql>
         UPDATE Orders
         SET OrderStatus = ?

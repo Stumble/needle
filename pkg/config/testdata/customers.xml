@@ -1,5 +1,5 @@
 <needle>
-  <schema name="Customers">
+  <schema name="Customers" mainObj="customer">
     <sql>
       CREATE TABLE Customers (
         CustomerID int,

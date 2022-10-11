@@ -20,6 +20,14 @@ func GetMutationFuncTemplate() string {
 	return mutationFuncTemplate
 }
 
+//go:embed templates/loaddump.tmpl
+var loaddumpTemplate string
+
+// GetLoadDumpTemplate - return a load and dump functions template
+func GetLoadDumpTemplate() string {
+	return loaddumpTemplate
+}
+
 //go:embed templates/repo.tmpl
 var repoTemplate string
 

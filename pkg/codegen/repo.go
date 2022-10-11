@@ -32,6 +32,8 @@ type RepoTemplate struct {
 	InterfaceSignatures []string
 	RepoName            string
 	MainStruct          string
+	MainStructName      string
+	LoadDump            string
 	Statements          []SQLStatementDecl
 	Queries             []string
 	Mutations           []string

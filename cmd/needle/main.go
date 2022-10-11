@@ -37,7 +37,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		err = ioutil.WriteFile(*outputPath, []byte(tmpl), 0644)
+		err = ioutil.WriteFile(*outputPath, []byte(tmpl), 0600)
 		if err != nil {
 			panic(err)
 		}
@@ -74,7 +74,7 @@ func main() {
 	if *outputPath == "" {
 		fmt.Println(code)
 	} else {
-		err := ioutil.WriteFile(*outputPath, []byte(code), 0644)
+		err := ioutil.WriteFile(*outputPath, []byte(code), 0600)
 		if err != nil {
 			panic(err)
 		}

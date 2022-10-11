@@ -127,7 +127,7 @@ func (c *NameResolveVisitor) Enter(n ast.Node) (ast.Node, bool) {
 			c.AppendErr(NewErrorf(ErrCompilerError, "schema not supported: %v", v))
 		}
 		tableName := v.Table.String()
-		// unqualified name resovled to closed select/update/delete expr.
+		// unqualified name resolved to closed select/update/delete expr.
 		if tableName == "" {
 			nm, ok := c.findClosestDef(v.Name.String())
 			if ok {

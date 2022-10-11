@@ -1,0 +1,30 @@
+[
+  {
+    "author": "Alice",
+    "name": "Bob Land",
+    "album": "Crazy ideas",
+    "spotify_id": 999,
+    "released_at": "1998-01-01T00:16:40Z",
+    "created_at": "1969-12-31T16:00:00-08:00",
+    "updated_at": "1969-12-31T16:00:00-08:00"
+  },
+  {
+    "author": "Alice",
+    "name": "Bob Land 2",
+    "album": "Crazy ideas",
+    "spotify_id": 1000,
+    "released_at": "1999-01-01T00:16:40Z",
+    "created_at": "1969-12-31T16:00:00-08:00",
+    "updated_at": "1969-12-31T16:00:00-08:00"
+  },
+  {
+    "author": "Alice",
+    "name": "No more bob",
+    "album": "Crazy ideas",
+    "spotify_id": 1001,
+    "released_at": "2000-01-01T00:16:40Z",
+    "created_at": "1969-12-31T16:00:00-08:00",
+    "updated_at": "1969-12-31T16:00:00-08:00"
+  }
+
+]

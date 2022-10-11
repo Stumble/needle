@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/iancoleman/strcase"
+
+	"github.com/stumble/needle/pkg/parser"
+	"github.com/stumble/needle/pkg/utils"
 )
 
 var gostructTemplate *template.Template
@@ -70,7 +73,7 @@ func NewGoField(nm string, t GoType, tags string) GoField {
 func (g GoField) String() string {
 	rst := fmt.Sprintf(`%s %s`, g.Name, g.Type)
 	if g.Tags != "" {
-		rst += fmt.Sprintf(` "%s"`, g.Tags)
+		rst += fmt.Sprintf(" `%s`", g.Tags)
 	}
 	return rst
 }
@@ -205,4 +208,50 @@ func (m MutationFunc) Signature() string {
 		"(ctx context.Context, args *%s %s, options ...Option) (sql.Result, error)",
 		m.Input.Name, invalidates.String(),
 	)
+}
+
+type LoadDumpFunc struct {
+	TableName  string
+	Columns    []string
+	PrimaryKey []string
+}
+
+func (l LoadDumpFunc) SelectSQL() string {
+	sql := fmt.Sprintf("SELECT %s FROM %s ORDER BY %s ASC;",
+		colLists(l.Columns), l.TableName, colLists(l.PrimaryKey))
+	node, err := parser.NewSQLParser().ParseOneStmt(sql)
+	if err != nil {
+		panic(err)
+	}
+	return utils.RestoreNode(node)
+}
+
+func (l LoadDumpFunc) InsertSQL() string {
+	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s);",
+		l.TableName, colLists(l.Columns), questionMarkLists(len(l.Columns)))
+	node, err := parser.NewSQLParser().ParseOneStmt(sql)
+	if err != nil {
+		panic(err)
+	}
+	return utils.RestoreNode(node)
+}
+
+func colLists(cols []string) string {
+	escaped := make([]string, len(cols))
+	for i := range cols {
+		escaped[i] = fmt.Sprintf("`%s`", cols[i])
+	}
+	return strings.Join(escaped, ",")
+}
+
+func questionMarkLists(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	var rst strings.Builder
+	rst.Write([]byte("?"))
+	for i := 1; i < n; i++ {
+		rst.Write([]byte(",?"))
+	}
+	return rst.String()
 }

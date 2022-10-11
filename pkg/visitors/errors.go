@@ -14,7 +14,7 @@ const (
 	ErrInvalidExpr
 	// ErrTypeCheck type check failed
 	ErrTypeCheck
-	// ErrCompilerError unexpected behaviour in code.
+	// ErrCompilerError unexpected behavior in code.
 	ErrCompilerError
 )
 

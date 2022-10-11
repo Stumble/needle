@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/iancoleman/strcase"
+
 	"github.com/stumble/needle/pkg/codegen"
 	"github.com/stumble/needle/pkg/driver"
 	"github.com/stumble/needle/pkg/schema"
 	"github.com/stumble/needle/pkg/utils"
-	"github.com/stumble/needle/pkg/visitors"
 	"github.com/stumble/needle/pkg/vcs"
+	"github.com/stumble/needle/pkg/visitors"
 )
 
 // GoParam -
@@ -256,6 +258,18 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 		"// nolint: unused\n" + mainStruct.ScanFunc() + "\n" +
 		"// nolint: unused\n" + mainStruct.ArglistFunc() + "\n"
 
+	loadDumpFunc := GenLoadDumpFunc(repo.Tables[0])
+	loaddumpTmpl := codegen.LoadDumpFuncTemplate{
+		RepoName:       repoName,
+		MainStructName: mainStruct.Name,
+		SelectAllSQL:   loadDumpFunc.SelectSQL(),
+		InsertRowSQL:   loadDumpFunc.InsertSQL(),
+	}
+	loaddumpStr, err := loaddumpTmpl.Generate()
+	if err != nil {
+		panic(err)
+	}
+
 	template := codegen.RepoTemplate{
 		NeedleVersion:       vcs.Commit,
 		TableSchema:         repo.Tables[0].SQL(),
@@ -265,6 +279,8 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 		RepoName:            repoName,
 		Statements:          sqlStmtDecls,
 		MainStruct:          mainStructStr,
+		MainStructName:      mainStruct.Name,
+		LoadDump:            loaddumpStr,
 		Queries:             queriesStr,
 		Mutations:           mutationsStr,
 	}
@@ -282,13 +298,30 @@ func (c *CodegenPass) Run(repo *driver.Repo) error {
 	return nil
 }
 
+// GenLoadDumpFunc returns a LoadDumpFunc struct.
+func GenLoadDumpFunc(tb schema.SQLTable) *codegen.LoadDumpFunc {
+	rst := codegen.LoadDumpFunc{TableName: tb.Name()}
+	for _, col := range tb.StarColumns() {
+		rst.Columns = append(rst.Columns, col.Name())
+	}
+	for _, idx := range tb.Indexes() {
+		if idx.IsPrimaryKey() {
+			rst.PrimaryKey = idx.KeyNames()
+			break
+		}
+	}
+	return &rst
+}
+
 // GenMainStruct - generate main struct.
 func GenMainStruct(tb schema.SQLTable, name string) *codegen.GoStruct {
 	rst := codegen.GoStruct{Name: name}
 	for _, col := range tb.StarColumns() {
 		ft := calcFieldType(col.GoType(), false)
 		rst.Fields = append(rst.Fields, codegen.NewGoField(
-			strings.Title(col.Name()), ft, ""))
+			utils.Title(col.Name()),
+			ft,
+			fmt.Sprintf(`json:"%s,omitempty"`, strcase.ToSnake(col.Name()))))
 	}
 	rst.Comments = "the main struct."
 	return &rst
@@ -305,9 +338,9 @@ func GenOutputStruct(outputName string, output []GoVar) *codegen.GoStruct {
 	}
 	for _, v := range output {
 		ft := calcFieldType(v.Type, false)
-		nm := strings.Title(v.Name)
+		nm := utils.Title(v.Name)
 		if names[v.Name] > 1 {
-			nm = strings.Title(v.TableName) + nm
+			nm = utils.Title(v.TableName) + nm
 		}
 		rst.Fields = append(rst.Fields, codegen.NewGoField(nm, ft, ""))
 	}
@@ -322,25 +355,25 @@ func GenInputStruct(inputName string, params []GoParam) *codegen.GoStruct {
 	rst := codegen.GoStruct{Name: inputName}
 	names := make(map[string]int)
 	for _, v := range params {
-		nm := strings.Title(v.Name)
+		nm := utils.Title(v.Name)
 		names[nm] = names[nm] + 1
 	}
 
 	tablenames := make(map[string]int)
 	for _, v := range params {
-		nm := strings.Title(v.TableName) + strings.Title(v.Name)
+		nm := utils.Title(v.TableName) + utils.Title(v.Name)
 		tablenames[nm] = tablenames[nm] + 1
 	}
 
 	nameUsed := make(map[string]int)
 	for _, v := range params {
 		ft := calcFieldType(v.GoType(), v.InPattern)
-		nm := strings.Title(v.Name)
+		nm := utils.Title(v.Name)
 		if v.InPattern {
 			nm += "List"
 		}
 		if names[nm] > 1 {
-			tnm := strings.Title(v.TableName) + strings.Title(v.Name)
+			tnm := utils.Title(v.TableName) + utils.Title(v.Name)
 			if tablenames[tnm] > 1 {
 				nm = fmt.Sprintf("%s%d", tnm, nameUsed[tnm])
 				nameUsed[tnm]++
@@ -358,7 +391,7 @@ func calcFieldType(t schema.GoType, list bool) codegen.GoType {
 	if t.Type == schema.GoTypeTime {
 		return codegen.GoType{
 			Pkg:       "time",
-			ID:        strings.Title(string(t.Type)),
+			ID:        utils.Title((t.Type)),
 			IsList:    list,
 			IsPointer: !t.NotNull,
 		}
@@ -366,14 +399,14 @@ func calcFieldType(t schema.GoType, list bool) codegen.GoType {
 	if t.Type == schema.GoTypeJson {
 		return codegen.GoType{
 			Pkg:       "json",
-			ID:        strings.Title(string(t.Type)),
+			ID:        utils.Title((t.Type)),
 			IsList:    list,
 			IsPointer: !t.NotNull,
 		}
 	}
 	return codegen.GoType{
 		Pkg:       "",
-		ID:        string(t.Type),
+		ID:        (t.Type),
 		IsList:    list,
 		IsPointer: !t.NotNull,
 	}
