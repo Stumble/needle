@@ -1,12 +1,25 @@
 * About
-Needle's inputs are schema(s) and queries(CURD). It will generate a golang repository file, that
-contains a repository interface which covers all queries provided. It is powered by TiDB's 
-SQL parser.
+Needle takes one configuration file of SQL schema(s) and SQL DML (queries and mutations) as input, and generate
+an efficient Go file that is (can)
++ strongly-typed
++ human-readable
++ provides the ability to use memory and Redis to cache results.
++ Invalidate query results upon mutation.
 
-+ Cache implementation: https://github.com/Stumble/needle/tree/master/pkg/clients/dcache
-+ MySQL manager implementation: https://github.com/Stumble/needle/tree/master/pkg/clients/mysql
+Internally, needle is powered by TiDB's SQL parser.
+
+* Install
+#+begin_src bash
+# version tag might not be up-to-date, please change before execution.
+curl -sSfL https://raw.githubusercontent.com/Stumble/needle/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v0.4.1
+#+end_src
+
+* Clients
+
+Since v0.4.1, clients have been moved out to https://github.com/Stumble/needle-clients.
 
 * Usage
+TODO: usage has not been updated for a long time. See example directory for demo.
 ** Introduction
 Imagine, your PM told you to add a feature to store the preferred language of a user. Here are the three steps:
 1. generate a needle configuration of needle by:
