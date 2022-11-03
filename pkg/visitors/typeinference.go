@@ -85,11 +85,12 @@ func (r *refStack) Lookup(name string) (columnRef, bool) {
 // TypeInferenceVisitor - assign types to terms.
 // premise: all column names are fully qualified.
 // after: all ColumnNameExpr will have its type field set to be the type defined
-//        in the schema file. ColumnNameExpr in select will have its
-//        type field set to column's type, function call term's type will resolve to
-//        the type of the return value.
-//        Terms as input(driver.ParamMarkerExpr), will have its type,
-//        inferred from binary operations, assignments...
+//
+//	in the schema file. ColumnNameExpr in select will have its
+//	type field set to column's type, function call term's type will resolve to
+//	the type of the return value.
+//	Terms as input(driver.ParamMarkerExpr), will have its type,
+//	inferred from binary operations, assignments...
 type TypeInferenceVisitor struct {
 	*baseVisitor
 	DBInfo []schema.SQLTable
