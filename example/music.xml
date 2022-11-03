@@ -41,7 +41,7 @@
         SELECT * FROM Musics WHERE Author = ? AND Name = ?;
       </sql>
     </query>
-    <mutation name="InsertMusic" invalidate="">
+    <mutation name="InsertMusic" invalidate="GetMusics,ListMusicsLTSpotifyID">
       <sql>
         INSERT INTO Musics
         (Author, Name, Album, SpotifyID, DownloadPath, ReleasedAt, CreatedAt, UpdatedAt)

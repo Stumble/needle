@@ -43,7 +43,7 @@ func (b *baseVisitor) IsEnteringRoot() bool {
 	return b.depth == 1
 }
 
-/// IsLeavingRoot - leave root node
+// / IsLeavingRoot - leave root node
 func (b *baseVisitor) IsLeavingRoot() bool {
 	return b.depth == 0
 }
