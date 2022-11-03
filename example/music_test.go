@@ -55,7 +55,7 @@ func (suite *musicTestSuite) TestInsertUseGolden() {
 		SpotifyID:    999,
 		DownloadPath: nil,
 		ReleasedAt:   time.Unix(1000, 0),
-	})
+	}, nil, nil, nil, nil)
 	suite.Require().NoError(err)
 	suite.Golden("musics", musicTableCodec{repo: suite.repo})
 }

@@ -29,6 +29,10 @@ docker-redis-stop:
 test-start-all-deps: docker-mysql-start docker-redis-start
 test-stop-all-deps: docker-mysql-stop docker-redis-stop
 
+.PHONY: needle
+needle:
+	needle -f music.xml -o music.go
+
 .PHONY: test-cmd test-local test
 test-cmd:
 	export ENV=test && \

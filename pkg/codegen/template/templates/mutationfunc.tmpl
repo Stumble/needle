@@ -14,17 +14,22 @@ func (s {{.RepoName}}) {{.MutationName}}{{.MutationSig}} {
         return rst, nil
     }
     {{ if  .Invalidates -}}
-	_ = exec.Invalidate(func() {
+	_ = exec.Invalidate(func() error {
+        var anyErr error
         {{ range .Invalidates -}}
-        if {{.ArgName}} == nil {
-            return
+        if {{.ArgName}} != nil {
+            var err error
+		    if {{.ValName}} != nil {
+		    	err = s.cache.Set(ctx, {{.ArgName}}.Key(), {{.ValName}}, time.Duration({{.CacheDuration.Nanoseconds}}))
+		    } else {
+		    	err = s.cache.Invalidate(ctx, {{.ArgName}}.Key())
+		    }
+            if err != nil {
+                anyErr = err
+            }
         }
-		if {{.ValName}} != nil {
-			_ = s.cache.Set(ctx, {{.ArgName}}.Key(), {{.ValName}}, time.Duration({{.CacheDuration.Nanoseconds}}))
-		} else {
-			_ = s.cache.Invalidate(ctx, {{.ArgName}}.Key())
-		}
         {{ end -}}
+        return anyErr
 	})
     {{- end }}
 	return rst, nil
