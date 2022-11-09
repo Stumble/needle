@@ -11,7 +11,7 @@ Internally, needle is powered by TiDB's SQL parser.
 * Install
 #+begin_src bash
 # version tag might not be up-to-date, please change before execution.
-curl -sSfL https://raw.githubusercontent.com/Stumble/needle/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v0.4.2
+curl -sSfL https://raw.githubusercontent.com/Stumble/needle/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v0.4.3
 #+end_src
 
 * Clients
