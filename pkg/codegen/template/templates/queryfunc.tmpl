@@ -8,18 +8,14 @@ func (s {{.RepoName}}) {{.QueryName}}{{.QuerySig}} {
 	    if s.cache == nil {
 	    	return s.{{.HiddenQueryName}}(ctx, exec, args)
 	    }
-        rst, err := s.cache.Get(ctx, args.Key(),
-            {{- if .IsList -}}([]{{.RstTypeName}})
-            {{- else -}}(*{{.RstTypeName}})
-            {{- end }}(nil), time.Duration({{.CacheDuration.Nanoseconds}}),
+	    rst := new({{- if .IsList -}}[]{{.RstTypeName}}
+                   {{- else -}}*{{.RstTypeName}}
+                   {{- end }})
+        err := s.cache.Get(ctx, args.Key(), rst, time.Duration({{.CacheDuration.Nanoseconds}}),
 	    	func() (interface{}, error) {
 	    		return s.{{.HiddenQueryName}}(ctx, exec, args)
 	    	}, nocache)
-        {{if .IsList -}}
-        return rst.([]{{.RstTypeName}}), err
-        {{else}}
-	    return rst.(*{{.RstTypeName}}), err
-        {{- end }}
+        return *rst, err
     {{else -}}
         return s.{{.HiddenQueryName}}(ctx, exec, args)
     {{- end}}

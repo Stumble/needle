@@ -208,12 +208,21 @@ type PassThroughFunc = func() (interface{}, error)
 
 // Cache is the interface that the cache layer must statisfy.
 type Cache interface {
-	Get(ctx context.Context, key string, vtype interface{},
-		ttl time.Duration, f PassThroughFunc, noCache bool) (interface{}, error)
+    // Get returns value of f(). The value will be saved into target and
+    // cached by key in redis and inmemcache for duration of expire, if configured.
+	Get(ctx context.Context, queryKey string, target interface{}, expire time.Duration, f PassThroughFunc, noCache bool) error
 
-	Set(ctx context.Context, key string, val interface{}, ttl time.Duration) (error)
+    // Set explicitly set a cache key to a val
+    // Inputs:
+    // key	  - key to set
+	// val	  - val to set
+	// ttl    - ttl of key
+	Set(ctx context.Context, key string, val interface{}, ttl time.Duration) error
 
-    Invalidate(ctx context.Context, key string) error
+	// Invalidate explicitly invalidates a cache key
+	// Inputs:
+	// key    - key to invalidate
+	Invalidate(ctx context.Context, key string) error
 }
 
 // InvalidateFunc is the type of function that invalidate cache.
