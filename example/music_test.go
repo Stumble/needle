@@ -3,11 +3,15 @@ package musicsrepo
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/coocood/freecache"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/stumble/needle-clients/dcache"
 	"github.com/stumble/needle-clients/mysql/testsuite"
 )
 
@@ -21,8 +25,8 @@ type musicTableCodec struct {
 
 func (m musicTableCodec) Dump() ([]byte, error) {
 	return m.repo.Dump(context.Background(), func(m *Music) {
-		m.CreatedAt = time.Unix(0, 0)
-		m.UpdatedAt = time.Unix(0, 0)
+		m.CreatedAt = time.Unix(0, 0).UTC()
+		m.UpdatedAt = time.Unix(0, 0).UTC()
 	})
 }
 func (m musicTableCodec) Load(data []byte) error {
@@ -31,7 +35,8 @@ func (m musicTableCodec) Load(data []byte) error {
 
 type musicTestSuite struct {
 	testsuite.MysqlTestSuite
-	repo Musics
+	cache dcache.Cache
+	repo  Musics
 }
 
 func TestMusicTestSuite(t *testing.T) {
@@ -43,8 +48,18 @@ func TestMusicTestSuite(t *testing.T) {
 }
 
 func (suite *musicTestSuite) SetupTest() {
+	// for consistent representation of time.
+	time.Local = time.UTC
 	suite.MysqlTestSuite.SetupTest()
-	suite.repo = NewMusics(nil, suite.Manager.GetExec())
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: fmt.Sprintf("127.0.0.1:6379"),
+		DB:   10,
+	})
+	inMemCache := freecache.NewCache(1024 * 1024)
+	cache, err := dcache.NewCache("music", redisClient, inMemCache, time.Millisecond)
+	suite.Require().NoError(err)
+	suite.cache = cache
+	suite.repo = NewMusics(cache, suite.Manager.GetExec())
 }
 
 func (suite *musicTestSuite) TestInsertUseGolden() {
@@ -54,7 +69,7 @@ func (suite *musicTestSuite) TestInsertUseGolden() {
 		Album:        "Crazy ideas",
 		SpotifyID:    999,
 		DownloadPath: nil,
-		ReleasedAt:   time.Unix(1000, 0),
+		ReleasedAt:   time.Unix(1000, 0).UTC(),
 	}, nil, nil, nil, nil)
 	suite.Require().NoError(err)
 	suite.Golden("musics", musicTableCodec{repo: suite.repo})
